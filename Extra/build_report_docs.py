@@ -146,8 +146,9 @@ def build_docx(out_path: Path):
     doc.add_heading("1.5 Bảo vệ nhánh và CODEOWNERS", level=2)
     doc.add_paragraph(
         "Chặn merge khi gate đỏ; CODEOWNERS bắt người phụ trách duyệt thư mục "
-        "nhạy cảm (policy/, security/, ground_truth/), mỗi đường dẫn có hai "
-        "chủ sở hữu để tác giả không tự duyệt PR của mình."
+        "nhạy cảm (policy/, security/, ground_truth/), mỗi đường dẫn khai báo "
+        "hai chủ sở hữu. Việc GitHub bắt buộc review phải được bật trong branch "
+        "protection rules; file CODEOWNERS một mình không đảm bảo enforcement."
     )
 
     # ── Chương 2 ──
@@ -260,6 +261,13 @@ def build_docx(out_path: Path):
         "giữ khóa); job deploy-smoke xác minh chữ ký trước khi triển khai thử "
         "lên kind và gọi /health."
     )
+    doc.add_heading("4.7 SBOM và provenance", level=2)
+    doc.add_paragraph(
+        "Pipeline tạo SBOM CycloneDX và ký/attest SBOM bằng Cosign keyless. "
+        "Release job tạo thêm GitHub artifact attestation theo SLSA build "
+        "provenance cho image digest. Cần xác nhận action thành công trên run "
+        "release và kiểm tra attestation từ phía người tiêu thụ artifact."
+    )
 
     # ── Chương 5: thí nghiệm ──
     doc.add_heading("Chương 5. Hạ tầng và thực nghiệm", level=1)
@@ -287,9 +295,10 @@ def build_docx(out_path: Path):
         cells[5].text = f"{m['TP']}/{m['FN']}"
         cells[6].text = f"{m['FP']}/{m['TN']}"
     doc.add_paragraph(
-        f"G2 hạ 6 lỗi MEDIUM ít nguy cơ xuống WARN ({G2_MISSED}) để giảm mệt "
-        "mỏi cảnh báo mà vẫn chặn toàn bộ lỗi có khả năng khai thác thật, có "
-        "bản vá hoặc thuộc khóa kiểm soát cao."
+        f"Bảng này tính từ decisions.csv của bộ mẫu, chưa phải kết quả scanner "
+        f"được tái thu thập trong lần dựng báo cáo. Theo fixture, G2 để WARN "
+        f"{G2_MISSED}; cần đối chiếu với báo cáo thô và run CI trước khi xem "
+        "các tỷ lệ là số đo hiệu quả phát hiện."
     )
     doc.add_heading("5.5 Thí nghiệm E3 - thời gian pipeline", level=2)
     table = doc.add_table(rows=1, cols=6)
@@ -306,55 +315,66 @@ def build_docx(out_path: Path):
     cells[4].text = f"{E3_OVERALL['max']}s"
     cells[5].text = "600s (10 phút)"
     doc.add_paragraph(
-        "Báo trung vị và p90 thay cho trung bình; toàn bộ 38 lần chạy nằm dưới "
-        "xa ngưỡng tê liệt 10 phút nên gate không làm nghẽn chuyển giao."
+        f"{e3.get('evidence_note', 'Nguồn dữ liệu thời gian chưa được xác thực.') } "
+        "Các dòng hiện có chưa so sánh cache hoặc cấu hình song song."
     )
     doc.add_heading("5.6 Thí nghiệm E4 - ảnh hưởng khắc phục", level=2)
     s = e4["structural"]
     doc.add_paragraph(
-        f"So sánh Dockerfile trước/sau khắc phục: {s['remediated_count']}/"
+        f"Phân tích tĩnh Dockerfile cho thấy {s['remediated_count']}/"
         f"{s['total_controls']} chiều kiểm soát được khắc phục (USER không "
-        "root, không ADD từ URL, không sshd/cổng 22, multi-stage). Trôi dữ "
-        f"liệu lỗ hổng: {e4['db_drift']['changed_count']} quyết định của G2 "
-        "đổi khi cập nhật KEV/EPSS (CVE-2024-24762 từ WARN thành BLOCK), cho "
-        "thấy chính sách nhạy với dữ liệu khai thác mới."
+        "root, không ADD từ URL, không sshd/cổng 22, multi-stage). Phân tích "
+        "KEV/EPSS là mô phỏng độ nhạy với snapshot T0 trong script. "
+        + ("Đã có số liệu Trivy và SBOM live trước/sau." if e4.get("live") and "error" not in e4["live"] else "Chưa có số liệu Trivy và SBOM live trước/sau.")
     )
     doc.add_heading("5.7 Thí nghiệm E2 - so sánh chính sách", level=2)
     doc.add_paragraph(
         f"Khuyến nghị tự động từ E2: {e2.get('recommended_policy', 'G1')}. Trên bộ "
-        "đáp án này G1 đạt recall tuyệt đối với 0 chặn nhầm; G2 đánh đổi 6 "
-        "cảnh báo BLOCK lấy WARN để giảm ma sát, phù hợp nhóm đã có quy trình "
-        "xử lý cảnh báo; G0 chứng minh không có gate thì 28/28 lỗi lọt."
+        "decision fixture, G1 đạt recall tuyệt đối với 0 chặn nhầm; G2 cho "
+        "WARN sáu mẫu (D04, D06, D20, D22, D23, D28) và BLOCK 22/28 mẫu lỗi; "
+        "G0 để 28/28 lỗi lọt. "
+        "Đây là quyết định policy đã ghi, chưa phải số đo phát hiện scanner."
     )
 
     # ── Chương 6: kiểm chứng ──
     doc.add_heading("Chương 6. Kiểm chứng và kết luận", level=1)
     doc.add_heading("6.1 Bằng chứng kiểm nghiệm", level=2)
     bullets = [
-        "pytest toàn repo: 50 test pass (33 test ứng dụng/E1-E3 + 17 test công cụ).",
-        "conftest verify G0/G1/G2: toàn bộ test Rego pass (kể cả fail-closed, ngoại lệ, EPSS).",
-        "rules/conftest/workflow.rego: 2 test pass; mẫu ci-vuln.yml bị 4 deny đúng D26-D28, ci.yml sạch pass.",
-        "38/38 patch bộ đáp án áp dụng sạch trên baseline main (git apply --check).",
-        "Chuỗi gate end-to-end trên dữ liệu mô phỏng: normalize -> enrich -> gate_input -> Conftest G2 (BLOCK đúng) -> tóm tắt PR.",
-        "E4: 4/4 chiều khắc phục image được xác nhận bằng phân tích Dockerfile.",
+        "Repo có unit tests cho ứng dụng, parser findings, policy Rego, luật workflow và helper E1-E4; trạng thái pass cần xác nhận bằng CI run mới.",
+        "Luật workflow có fixture an toàn và fixture lỗi để kiểm tra các deny; cần giữ riêng kết quả test luật với kết quả scanner trên workflow thật.",
+        "Các patch D/C được lưu để tái lập; áp dụng sạch chỉ chứng minh patch khớp baseline, không chứng minh scanner đã phát hiện.",
+        "E1/E2 hiện dùng quyết định đã ghi trong fixture; chưa có liên kết đến báo cáo scanner cho từng mẫu.",
+        "E4 xác nhận cấu trúc Dockerfile; kết quả lỗ hổng/SBOM chỉ được kết luận sau khi có live output cho cả hai image.",
     ]
     for b in bullets:
         doc.add_paragraph(b, style="List Bullet")
     doc.add_heading("6.2 Kết luận", level=2)
     doc.add_paragraph(
-        "Đường ống DevSecOps hoàn chỉnh đã được xây dựng và kiểm chứng: năm "
-        "lớp quét thu thập phát hiện, một gate policy-as-code quyết định chặn "
-        "có kiểm thử, chuỗi cung ứng được ký và xác minh, cùng bốn thí nghiệm "
-        "định lượng (E1-E4) trả lời các câu hỏi nghiên cứu về hiệu quả phát "
-        "hiện, cân bằng chính sách, thời gian pipeline và tác động khắc phục."
+        "Repo đã hiện thực pipeline nhiều lớp, policy-as-code, ký image và "
+        "smoke test triển khai. Tuy nhiên, bộ số liệu E1-E3 hiện chưa đủ dấu "
+        "vết chạy để chứng minh hiệu quả scanner, thời gian CI hoặc ảnh hưởng "
+        "cache/song song; E4 cần live report trước/sau. Vì vậy kết quả hiện tại "
+        "là prototype có khả năng tái lập, chưa phải đánh giá thực nghiệm hoàn tất."
     )
     doc.add_heading("6.3 Hạn chế và hướng mở", level=2)
     for b in [
-        "Số liệu live của E4 cần runner có docker/trivy/syft (thu trên CI).",
-        "KEV/EPSS dùng tập con cố định phục vụ thực nghiệm, chưa nối API thời gian thực.",
-        "Chưa đo chi phí token/chi phí runner của từng lớp quét.",
+        "KEV/EPSS dùng tập con cố định; T0 trong E4 là fixture, không phải snapshot lịch sử có nguồn dẫn.",
+        "Chưa thu đủ phép đo CI có run URL, số lần lặp, chế độ cache bật/tắt và chạy tuần tự/song song.",
+        "Chưa ước tính chi phí runner; Terraform chỉ được quét, không apply nên chưa phát sinh tài nguyên cloud từ pipeline.",
+        "Chưa ánh xạ từng rule của project vào control ID cụ thể của CSA CCM/CIS; xem phần tài liệu tham khảo để xác định phạm vi chuẩn.",
     ]:
         doc.add_paragraph(b, style="List Bullet")
+    doc.add_heading("Tài liệu tham khảo", level=2)
+    for ref in [
+        "Cloud Security Alliance, Cloud Controls Matrix v4.1: https://cloudsecurityalliance.org/artifacts/cloud-controls-matrix-v4-1",
+        "Center for Internet Security, CIS Benchmarks: https://www.cisecurity.org/cis-benchmarks",
+        "CIS Kubernetes Benchmark: https://www.cisecurity.org/benchmark/kubernetes",
+        "SLSA, Build requirements and provenance: https://slsa.dev/spec/v1.2/build-requirements",
+        "NIST, CVSS v3.1 Specification: https://www.first.org/cvss/v3.1/specification-document",
+        "FIRST, Exploit Prediction Scoring System (EPSS): https://www.first.org/epss/",
+        "CISA, Known Exploited Vulnerabilities Catalog: https://www.cisa.gov/known-exploited-vulnerabilities-catalog",
+    ]:
+        doc.add_paragraph(ref, style="List Bullet")
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     doc.save(out_path)
@@ -430,7 +450,7 @@ def build_pptx(out_path: Path):
         "5 lớp quét: SAST (Semgrep) - Secret (Gitleaks) - SCA (Trivy) - IaC/K8s (Checkov, Trivy config) - Image/SBOM (Trivy, Syft, Grype).",
         "Chuẩn hóa + làm giàu: một khuôn finding, bổ sung KEV/EPSS/bản vá/độ tin cậy.",
         "Gate: Rego + Conftest, ba hồ sơ G0/G1/G2, fail-closed, ngoại lệ có hạn.",
-        "Chuỗi cung ứng: push theo digest, ký Cosign keyless, verify trước deploy kind.",
+        "Chuỗi cung ứng: push theo digest, tạo SLSA provenance, ký Cosign keyless, verify trước deploy kind.",
     ])
 
     # 5. Luồng gate
@@ -473,15 +493,15 @@ def build_pptx(out_path: Path):
                      f"{m['f1']:.4f}", pct(m["false_block_rate"])])
     add_table(slide, rows)
     add_body(slide, [
-        f"G2 hạ 6 lỗi MEDIUM xuống WARN ({G2_MISSED}) để giảm mệt mỏi cảnh báo.",
+        f"Quyết định fixture ghi G2 WARN {G2_MISSED}; chưa đối chiếu đủ với raw scanner reports.",
     ], size=16)
 
     # 9. E2
     slide = add_slide("E2 - Chọn chính sách")
     add_body(slide, [
-        f"Khuyến nghị tự động: {str(e2.get('recommended_policy', 'G1')).upper()} (F1 cao nhất với 0 chặn nhầm).",
-        "G2 phù hợp vận hành thật: chặn rủi ro khai thác được, WARN phần cấu hình nhẹ.",
-        "Cả ba chính sách đều 0 chặn nhầm trên 10 sạch + 8 đối chứng.",
+        f"Khuyến nghị tự động: {str(e2.get('recommended_policy', 'G1')).upper()} theo decision fixture, không phải phép đo scanner.",
+        "Đây là kết quả trên decision fixture, không phải tối ưu có trọng số ma sát.",
+        "10 clean có decision fixture; 8 negative controls chưa có kết quả scan độc lập.",
     ])
 
     # 10. E3
@@ -493,7 +513,8 @@ def build_pptx(out_path: Path):
          f"{E3_OVERALL['max']}s", "600s"],
     ])
     add_body(slide, [
-        "Báo trung vị và phân vị thay cho trung bình; không lần chạy nào vượt ngưỡng tê liệt.",
+        e3.get("evidence_note", "Nguồn thời gian CI chưa được xác thực."),
+        "Chưa có so sánh bật/tắt cache hoặc tuần tự/song song.",
     ], size=16)
 
     # 11. E4
@@ -504,26 +525,25 @@ def build_pptx(out_path: Path):
         "(không root, không ADD URL, không sshd/22, multi-stage).",
         f"Trôi dữ liệu: {e4['db_drift']['changed_count']} quyết định G2 đổi khi cập nhật "
         "KEV/EPSS (CVE-2024-24762 WARN -> BLOCK).",
-        "Số liệu live (trivy/SBOM trước-sau) thu trên CI job image.",
+        "Kết quả live trước/sau chỉ được kết luận khi artifact report-image có đủ 2 scan Trivy và 2 SBOM Syft.",
     ])
 
     # 12. Kiểm chứng
     slide = add_slide("Bằng chứng kiểm nghiệm")
     add_body(slide, [
-        "pytest: 50/50 pass (ứng dụng + E1-E3 + 17 test công cụ).",
-        "conftest verify: G0/G1/G2 pass toàn bộ, gồm fail-closed và ngoại lệ.",
-        "Luật workflow: mẫu lỗi 4 deny đúng D26-D28; ci.yml sạch pass.",
-        "38/38 patch bộ đáp án áp sạch trên baseline main.",
-        "Gate end-to-end trên dữ liệu mô phỏng: BLOCK đúng và sinh tóm tắt PR.",
+        "Repo có test ứng dụng, parser và policy; trạng thái pass phải xác nhận bằng CI run mới.",
+        "Workflow quét .github/workflows bằng Checkov; luật Rego workflow có fixture riêng.",
+        "Patch có thể tái lập nhưng apply sạch không đồng nghĩa scanner đã phát hiện.",
+        "E1/E2 là kết quả fixture; cần raw scanner reports và URL run cho số đo detection.",
     ])
 
     # 13. Kết luận
     slide = add_slide("Kết luận")
     add_body(slide, [
-        "Pipeline chặn lỗi trước triển khai với quyết định giải thích được bằng luật có kiểm thử.",
-        "Chính sách ngữ cảnh (G2) cân bằng rủi ro và ma sát tốt hơn chính sách máy móc (G1).",
-        "Chuỗi cung ứng an toàn: ghim SHA, checksum, ký keyless, verify trước deploy.",
-        "Toàn bộ số liệu tái lập được bằng lệnh trong tests/README.md.",
+        "Repo hiện có prototype pipeline nhiều lớp, policy-as-code, image signing và deploy smoke test.",
+        "Bằng chứng E1-E3 chưa đủ để kết luận hiệu quả detection hoặc thời gian CI đại diện.",
+        "E4 cần artifact live Trivy/Syft trước-sau; SLSA provenance cần được xác nhận trên release run.",
+        "Kết luận thực nghiệm cần cập nhật sau khi thu thập các run có thể truy vết.",
     ])
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
