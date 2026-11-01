@@ -168,8 +168,9 @@ def build_docx(out_path: Path):
     doc.add_heading("2.3 EPSS, KEV", level=2)
     doc.add_paragraph(
         "EPSS là xác suất bị khai thác trong 30 ngày tới; KEV là danh mục CVE "
-        "đã bị khai thác thật. G2 chặn mọi phát hiện khớp KEV hoặc có EPSS >= "
-        "0.10 bất kể CVSS, vì rủi ro thực tế cao hơn điểm kỹ thuật."
+        "đã bị khai thác thật. G2 được cấu hình chặn CVE khớp tập KEV hoặc có "
+        "EPSS >= 0.10 bất kể CVSS. Hiện EPSS snapshot chưa có nguồn và các mẫu "
+        "CVE trong ground truth không khớp KEV subset đã commit; đây là thiết kế policy, chưa phải kết quả đo khai thác."
     )
     doc.add_heading("2.4 Báo nhầm, bỏ sót và mẫu đối chứng", level=2)
     doc.add_paragraph(
@@ -324,14 +325,14 @@ def build_docx(out_path: Path):
         f"Phân tích tĩnh Dockerfile cho thấy {s['remediated_count']}/"
         f"{s['total_controls']} chiều kiểm soát được khắc phục (USER không "
         "root, không ADD từ URL, không sshd/cổng 22, multi-stage). Phân tích "
-        "KEV/EPSS là mô phỏng độ nhạy với snapshot T0 trong script. "
+        "KEV/EPSS T0 là tín hiệu mô phỏng có chủ đích, không phải snapshot lịch sử. "
         + ("Đã có số liệu Trivy và SBOM live trước/sau." if e4.get("live") and "error" not in e4["live"] else "Chưa có số liệu Trivy và SBOM live trước/sau.")
     )
     doc.add_heading("5.7 Thí nghiệm E2 - so sánh chính sách", level=2)
     doc.add_paragraph(
         f"Khuyến nghị tự động từ E2: {e2.get('recommended_policy', 'G1')}. Trên bộ "
         "decision fixture, G1 đạt recall tuyệt đối với 0 chặn nhầm; G2 cho "
-        "WARN sáu mẫu (D04, D06, D20, D22, D23, D28) và BLOCK 22/28 mẫu lỗi; "
+        "WARN tám mẫu (D04, D06, D09, D10, D20, D22, D23, D28) và BLOCK 20/28 mẫu lỗi; "
         "G0 để 28/28 lỗi lọt. "
         "Đây là quyết định policy đã ghi, chưa phải số đo phát hiện scanner."
     )
@@ -342,7 +343,7 @@ def build_docx(out_path: Path):
     bullets = [
         "Repo có unit tests cho ứng dụng, parser findings, policy Rego, luật workflow và helper E1-E4; trạng thái pass cần xác nhận bằng CI run mới.",
         "Luật workflow có fixture an toàn và fixture lỗi để kiểm tra các deny; cần giữ riêng kết quả test luật với kết quả scanner trên workflow thật.",
-        "Các patch D/C được lưu để tái lập; áp dụng sạch chỉ chứng minh patch khớp baseline, không chứng minh scanner đã phát hiện.",
+        "Các patch D/C/N được lưu để tái lập; bộ tổng hợp đối chiếu scanner/gate với baseline cùng commit, tool versions và Trivy DB metadata.",
         "E1/E2 hiện dùng quyết định đã ghi trong fixture; chưa có liên kết đến báo cáo scanner cho từng mẫu.",
         "E4 xác nhận cấu trúc Dockerfile; kết quả lỗ hổng/SBOM chỉ được kết luận sau khi có live output cho cả hai image.",
     ]
@@ -358,7 +359,7 @@ def build_docx(out_path: Path):
     )
     doc.add_heading("6.3 Hạn chế và hướng mở", level=2)
     for b in [
-        "KEV/EPSS dùng tập con cố định; T0 trong E4 là fixture, không phải snapshot lịch sử có nguồn dẫn.",
+        "KEV/EPSS: KEV là tập con đã đối chiếu; EPSS chưa có snapshot nguồn. T0 trong E4 là tín hiệu mô phỏng, không phải snapshot lịch sử.",
         "Chưa thu đủ phép đo CI có run URL, số lần lặp, chế độ cache bật/tắt và chạy tuần tự/song song.",
         "Chưa ước tính chi phí runner; Terraform chỉ được quét, không apply nên chưa phát sinh tài nguyên cloud từ pipeline.",
         "Chưa ánh xạ từng rule của project vào control ID cụ thể của CSA CCM/CIS; xem phần tài liệu tham khảo để xác định phạm vi chuẩn.",
@@ -523,8 +524,8 @@ def build_pptx(out_path: Path):
     add_body(slide, [
         f"Dockerfile: khắc phục {s['remediated_count']}/{s['total_controls']} chiều "
         "(không root, không ADD URL, không sshd/22, multi-stage).",
-        f"Trôi dữ liệu: {e4['db_drift']['changed_count']} quyết định G2 đổi khi cập nhật "
-        "KEV/EPSS (CVE-2024-24762 WARN -> BLOCK).",
+        f"Độ nhạy mô phỏng: {e4['db_drift']['changed_count']} quyết định G2 đổi "
+        "khi tín hiệu KEV/EPSS thay đổi; T0 không phải dữ liệu lịch sử.",
         "Kết quả live trước/sau chỉ được kết luận khi artifact report-image có đủ 2 scan Trivy và 2 SBOM Syft.",
     ])
 
