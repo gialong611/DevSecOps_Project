@@ -51,6 +51,76 @@ e1 = {p: load(f"e1_{p}_metrics.json") for p in ("g0", "g1", "g2")}
 e2 = load("e2_policy_comparison.json")
 e3 = load("e3_pipeline_duration.json")
 e4 = load("e4_image_remediation.json")
+try:
+    ci_baseline = load("ci_baseline_latest.json")
+except SystemExit:
+    ci_baseline = None
+
+ci_run = (ci_baseline or {}).get("run", {})
+CI_RUN_URL = ci_run.get("url", "")
+CI_RUN_LABEL = (
+    f"run #{ci_run['run_number']} ({ci_run['conclusion']}, commit "
+    f"{ci_run['head_sha'][:12]})"
+    if ci_run.get("run_number") and ci_run.get("head_sha") and ci_run.get("conclusion")
+    else "chưa có run baseline được ghi nhận"
+)
+CI_SUCCESSFUL_JOBS = {
+    item.get("name") for item in (ci_baseline or {}).get("jobs", [])
+    if item.get("conclusion") == "success"
+}
+CI_REQUIRED_JOBS = {
+    "Run Python tests", "Security scans (collection mode)", "iac", "image",
+    "gate (Conftest Rego)", "release", "deploy-smoke",
+}
+CI_RUN_COMPLETE_GREEN = (
+    ci_run.get("conclusion") == "success"
+    and CI_REQUIRED_JOBS.issubset(CI_SUCCESSFUL_JOBS)
+)
+CI_RUN_STATUS = (
+    f"Baseline {CI_RUN_LABEL} có các job test, scan, gate, release và deploy-smoke thành công."
+    if CI_RUN_COMPLETE_GREEN
+    else f"Metadata CI hiện ghi nhận {CI_RUN_LABEL}; chưa xác minh đủ trạng thái tất cả job."
+)
+gate_result = (ci_baseline or {}).get("gate_result_from_job_log", {})
+CI_GATE_SUMMARY = (
+    f"Gate {gate_result['decision']}: {gate_result['normalized_findings']} findings, "
+    f"{gate_result['blockers']} blockers, {gate_result['warnings']} warnings "
+    f"({gate_result['warning_severity_counts']['HIGH']} HIGH, "
+    f"{gate_result['warning_severity_counts']['MEDIUM']} MEDIUM)."
+    if gate_result.get("decision") and gate_result.get("warning_severity_counts")
+    else "Chưa có thống kê decision/finding của gate trong metadata CI."
+)
+if (
+    gate_result.get("warning_budget") is not None
+    and gate_result.get("warnings") is not None
+):
+    CI_GATE_SUMMARY += (
+        f" Ngân sách cảnh báo là {gate_result['warning_budget']}; "
+        + ("đã vượt ngưỡng." if gate_result.get("warning_budget_exceeded") else "chưa vượt ngưỡng.")
+    )
+    if gate_result.get("warning_budget_scope"):
+        CI_GATE_SUMMARY += " Run baseline này là push, nên đây là tín hiệu nền, chưa phải phép đo PR bị tê liệt."
+CI_ARTIFACT_NAMES = {
+    item.get("name") for item in (ci_baseline or {}).get("artifacts", [])
+}
+if e4.get("live") and "error" not in e4["live"]:
+    E4_LIVE_STATUS = "Metrics đã có số liệu Trivy và SBOM live trước/sau."
+elif CI_RUN_COMPLETE_GREEN and {"report-image", "sbom"}.issubset(CI_ARTIFACT_NAMES):
+    e4_log = (ci_baseline or {}).get("e4_log_summary", {})
+    if e4_log.get("trivy_vulnerability_record_delta_after_minus_before") is not None:
+        E4_LIVE_STATUS = (
+            f"Log {CI_RUN_LABEL} ghi nhận delta sau/sửa: "
+            f"{e4_log['trivy_vulnerability_record_delta_after_minus_before']} bản ghi lỗ hổng Trivy và "
+            f"{e4_log['syft_sbom_component_delta_after_minus_before']} thành phần SBOM. "
+            "Raw artifact chưa được phân tích để xác minh số tuyệt đối, severity và digest."
+        )
+    else:
+        E4_LIVE_STATUS = (
+            f"Workflow {CI_RUN_LABEL} đã lưu artifact image/SBOM; nội dung artifact "
+            "chưa được phân tích để trích số liệu trước/sau."
+        )
+else:
+    E4_LIVE_STATUS = "Chưa có số liệu Trivy và SBOM live trước/sau được xác minh."
 
 # policy_test_results.json có thể mang nhiều khuôn dạng theo run_policy_tests.ps1
 try:
@@ -266,8 +336,9 @@ def build_docx(out_path: Path):
     doc.add_paragraph(
         "Pipeline tạo SBOM CycloneDX và ký/attest SBOM bằng Cosign keyless. "
         "Release job tạo thêm GitHub artifact attestation theo SLSA build "
-        "provenance cho image digest. Cần xác nhận action thành công trên run "
-        "release và kiểm tra attestation từ phía người tiêu thụ artifact."
+        "provenance cho image digest. "
+        + ("Trên baseline mới nhất, release job và bước deploy-smoke xác minh chữ ký image thành công. " if CI_RUN_COMPLETE_GREEN else "Trạng thái release cần được xác minh từ một CI run thành công. ")
+        + "Provenance vẫn cần được xác minh độc lập từ phía người tiêu thụ artifact."
     )
 
     # ── Chương 5: thí nghiệm ──
@@ -305,7 +376,7 @@ def build_docx(out_path: Path):
     table = doc.add_table(rows=1, cols=6)
     table.style = "Light Grid Accent 1"
     hdr = table.rows[0].cells
-    for i, text in enumerate(["N", "Trung vị p50", "p90", "p95", "Max",
+    for i, text in enumerate(["N (thăm dò)", "Trung vị p50", "p90", "p95", "Max",
                               "Ngưỡng tê liệt"]):
         hdr[i].text = text
     cells = table.add_row().cells
@@ -319,6 +390,16 @@ def build_docx(out_path: Path):
         f"{e3.get('evidence_note', 'Nguồn dữ liệu thời gian chưa được xác thực.') } "
         "Các dòng hiện có chưa so sánh cache hoặc cấu hình song song."
     )
+    live_timing = e3.get("live_observation")
+    if live_timing:
+        durations = live_timing.get("job_durations_seconds", {})
+        doc.add_paragraph(
+            f"Một run truy vết được: security-scan {durations.get('security-scan', '?')}s, "
+            f"IaC {durations.get('iac', '?')}s, image {durations.get('image', '?')}s. "
+            f"Đường găng scan song song {live_timing.get('parallel_scan_stage_critical_path_seconds', '?')}s; "
+            "đây không phải tổng thời gian toàn workflow hay phép đo lặp. "
+            f"Nguồn: {live_timing.get('run_url', 'không có URL')}"
+        )
     doc.add_heading("5.6 Thí nghiệm E4 - ảnh hưởng khắc phục", level=2)
     s = e4["structural"]
     doc.add_paragraph(
@@ -326,7 +407,7 @@ def build_docx(out_path: Path):
         f"{s['total_controls']} chiều kiểm soát được khắc phục (USER không "
         "root, không ADD từ URL, không sshd/cổng 22, multi-stage). Phân tích "
         "KEV/EPSS T0 là tín hiệu mô phỏng có chủ đích, không phải snapshot lịch sử. "
-        + ("Đã có số liệu Trivy và SBOM live trước/sau." if e4.get("live") and "error" not in e4["live"] else "Chưa có số liệu Trivy và SBOM live trước/sau.")
+        + E4_LIVE_STATUS
     )
     doc.add_heading("5.7 Thí nghiệm E2 - so sánh chính sách", level=2)
     doc.add_paragraph(
@@ -341,28 +422,29 @@ def build_docx(out_path: Path):
     doc.add_heading("Chương 6. Kiểm chứng và kết luận", level=1)
     doc.add_heading("6.1 Bằng chứng kiểm nghiệm", level=2)
     bullets = [
-        "Repo có unit tests cho ứng dụng, parser findings, policy Rego, luật workflow và helper E1-E4; trạng thái pass cần xác nhận bằng CI run mới.",
+        f"{CI_RUN_STATUS} {CI_GATE_SUMMARY} Run: {CI_RUN_URL or 'chưa có URL'}.",
         "Luật workflow có fixture an toàn và fixture lỗi để kiểm tra các deny; cần giữ riêng kết quả test luật với kết quả scanner trên workflow thật.",
         "Các patch D/C/N được lưu để tái lập; bộ tổng hợp đối chiếu scanner/gate với baseline cùng commit, tool versions và Trivy DB metadata.",
         "E1/E2 hiện dùng quyết định đã ghi trong fixture; chưa có liên kết đến báo cáo scanner cho từng mẫu.",
-        "E4 xác nhận cấu trúc Dockerfile; kết quả lỗ hổng/SBOM chỉ được kết luận sau khi có live output cho cả hai image.",
+        "Run baseline lưu artifact report-image và sbom; số liệu E4 trước/sau chưa được trích và kiểm tra.",
     ]
     for b in bullets:
         doc.add_paragraph(b, style="List Bullet")
     doc.add_heading("6.2 Kết luận", level=2)
     doc.add_paragraph(
-        "Repo đã hiện thực pipeline nhiều lớp, policy-as-code, ký image và "
-        "smoke test triển khai. Tuy nhiên, bộ số liệu E1-E3 hiện chưa đủ dấu "
-        "vết chạy để chứng minh hiệu quả scanner, thời gian CI hoặc ảnh hưởng "
-        "cache/song song; E4 cần live report trước/sau. Vì vậy kết quả hiện tại "
-        "là prototype có khả năng tái lập, chưa phải đánh giá thực nghiệm hoàn tất."
+        f"Repo đã hiện thực pipeline nhiều lớp, policy-as-code, ký image và "
+        f"smoke test triển khai. {CI_RUN_STATUS} {CI_GATE_SUMMARY} Tuy nhiên, "
+        "bộ số liệu E1-E3 chưa có đủ fixture và lượt lặp để chứng minh hiệu quả "
+        "scanner hoặc thời gian CI đại diện; artifact E4 cần được phân tích trước "
+        "khi kết luận ảnh hưởng của remediation. Hệ thống đã chạy đầu-cuối, còn "
+        "bằng chứng thực nghiệm có kiểm soát chưa hoàn tất."
     )
     doc.add_heading("6.3 Hạn chế và hướng mở", level=2)
     for b in [
         "KEV/EPSS: KEV là tập con đã đối chiếu; EPSS chưa có snapshot nguồn. T0 trong E4 là tín hiệu mô phỏng, không phải snapshot lịch sử.",
-        "Chưa thu đủ phép đo CI có run URL, số lần lặp, chế độ cache bật/tắt và chạy tuần tự/song song.",
+        "Hiện mới có một baseline run URL; chưa đủ fixture D/C/N và số lần lặp cho cache bật/tắt hoặc chạy tuần tự/song song.",
         "Chưa ước tính chi phí runner; Terraform chỉ được quét, không apply nên chưa phát sinh tài nguyên cloud từ pipeline.",
-        "Chưa ánh xạ từng rule của project vào control ID cụ thể của CSA CCM/CIS; xem phần tài liệu tham khảo để xác định phạm vi chuẩn.",
+        "Ánh xạ CIS/CSA hiện bao phủ một số fixture IaC và quy trình CI; cần mở rộng sang các fixture còn lại và rà soát phiên bản benchmark.",
     ]:
         doc.add_paragraph(b, style="List Bullet")
     doc.add_heading("Tài liệu tham khảo", level=2)
@@ -508,13 +590,20 @@ def build_pptx(out_path: Path):
     # 10. E3
     slide = add_slide("E3 - Thời gian pipeline")
     add_table(slide, [
-        ["N", "p50", "p90", "p95", "Max", "Ngưỡng"],
+        ["N (thăm dò)", "p50", "p90", "p95", "Max", "Ngưỡng"],
         [E3_OVERALL["N"], f"{E3_OVERALL['median_p50']}s",
          f"{E3_OVERALL['p90']}s", f"{E3_OVERALL['p95']}s",
          f"{E3_OVERALL['max']}s", "600s"],
     ])
     add_body(slide, [
         e3.get("evidence_note", "Nguồn thời gian CI chưa được xác thực."),
+        (
+            f"Một run truy vết: security-scan {e3['live_observation']['job_durations_seconds'].get('security-scan', '?')}s, "
+            f"IaC {e3['live_observation']['job_durations_seconds'].get('iac', '?')}s, "
+            f"image {e3['live_observation']['job_durations_seconds'].get('image', '?')}s; "
+            f"đường găng scan {e3['live_observation'].get('parallel_scan_stage_critical_path_seconds', '?')}s, không phải toàn workflow."
+            if e3.get("live_observation") else "Chưa có timing run truy vết được."
+        ),
         "Chưa có so sánh bật/tắt cache hoặc tuần tự/song song.",
     ], size=16)
 
@@ -526,13 +615,13 @@ def build_pptx(out_path: Path):
         "(không root, không ADD URL, không sshd/22, multi-stage).",
         f"Độ nhạy mô phỏng: {e4['db_drift']['changed_count']} quyết định G2 đổi "
         "khi tín hiệu KEV/EPSS thay đổi; T0 không phải dữ liệu lịch sử.",
-        "Kết quả live trước/sau chỉ được kết luận khi artifact report-image có đủ 2 scan Trivy và 2 SBOM Syft.",
+        E4_LIVE_STATUS,
     ])
 
     # 12. Kiểm chứng
     slide = add_slide("Bằng chứng kiểm nghiệm")
     add_body(slide, [
-        "Repo có test ứng dụng, parser và policy; trạng thái pass phải xác nhận bằng CI run mới.",
+        f"{CI_RUN_STATUS} {CI_GATE_SUMMARY}",
         "Workflow quét .github/workflows bằng Checkov; luật Rego workflow có fixture riêng.",
         "Patch có thể tái lập nhưng apply sạch không đồng nghĩa scanner đã phát hiện.",
         "E1/E2 là kết quả fixture; cần raw scanner reports và URL run cho số đo detection.",
@@ -541,9 +630,9 @@ def build_pptx(out_path: Path):
     # 13. Kết luận
     slide = add_slide("Kết luận")
     add_body(slide, [
-        "Repo hiện có prototype pipeline nhiều lớp, policy-as-code, image signing và deploy smoke test.",
+        f"Pipeline nhiều lớp, policy-as-code, image signing và deploy smoke. {CI_RUN_STATUS} {CI_GATE_SUMMARY}",
         "Bằng chứng E1-E3 chưa đủ để kết luận hiệu quả detection hoặc thời gian CI đại diện.",
-        "E4 cần artifact live Trivy/Syft trước-sau; SLSA provenance cần được xác nhận trên release run.",
+        "Cần phân tích report-image/SBOM, hoàn tất ma trận D/C/N và lặp E3; SLSA provenance cần xác minh độc lập.",
         "Kết luận thực nghiệm cần cập nhật sau khi thu thập các run có thể truy vết.",
     ])
 
