@@ -16,6 +16,10 @@ bằng chứng CI hiện có; điểm dưới đây chỉ là ước tính tự 
   đây là run `push`, nên chưa phải phép đo PR bị tê liệt, nhưng là tín hiệu nền
   vượt ngân sách nhiễu. Cần xử lý finding dựa trên raw reports, không tắt cảnh
   báo chỉ để giảm số đếm.
+- Báo cáo gate đã được cải tiến tại local: cảnh báo CVE/GHSA được liên kết với
+  finding nguồn, package, phiên bản hiện tại/phiên bản vá, scanner và vị trí;
+  severity HIGH/MEDIUM đọc từ policy. Thay đổi này chưa có CI run mới xác nhận
+  và không tự giảm số warning.
 - Run này đã lưu các artifact `report-scan`, `report-iac`, `report-image`,
   `report-gate` và `sbom`. Đây là bằng chứng cho một lần chạy baseline; chưa
   phải bộ kết quả của toàn bộ fixture D/C/N.
@@ -55,7 +59,7 @@ bằng chứng CI hiện có; điểm dưới đây chỉ là ước tính tự 
   run; gate ra `WARN` với 30 cảnh báo.
 - [x] Pipeline chạy các lớp quét, gate, ký image và deploy smoke trên CI.
 - [x] Có log G2 chặn lỗi trước khi vá và một run xanh sau khi cập nhật image.
-- [ ] Dùng raw reports xác định dependency/package cho 15 MEDIUM đã có bản vá;
+- [ ] Chạy CI với liên kết cảnh báo mới để xác định dependency/package cho 15 MEDIUM đã có bản vá;
   khắc phục an toàn ít nhất 10 finding để xuống ≤20 warnings, rồi quét lại. Giữ
   15 HIGH chưa có bản vá ở mức WARN nếu policy chưa có căn cứ nâng thành BLOCK.
 - [ ] Tải artifact của run #11; giải nén, kiểm tra nội dung và trích số liệu E4
