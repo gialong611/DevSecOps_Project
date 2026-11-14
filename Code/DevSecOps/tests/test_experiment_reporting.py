@@ -204,6 +204,12 @@ def test_run_matrix_requests_created_at_before_selecting_latest_run(monkeypatch)
     assert "createdAt" in json_fields
 
 
+def test_run_matrix_normalizes_baseline_and_fixture_ids():
+    assert matrix.normalize_fixture_id("baseline") == "baseline"
+    assert matrix.normalize_fixture_id("BASELINE") == "baseline"
+    assert matrix.normalize_fixture_id("d04") == "D04"
+
+
 def test_e4_database_snapshot_must_be_present_and_normalized():
     valid = {
         "databases": {

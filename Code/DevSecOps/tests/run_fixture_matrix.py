@@ -71,6 +71,11 @@ def fixture_ids():
         return [row["id"].strip().upper() for row in csv.DictReader(stream)]
 
 
+def normalize_fixture_id(value):
+    value = value.strip()
+    return "baseline" if value.casefold() == "baseline" else value.upper()
+
+
 def atomic_write_json(path, value):
     path.parent.mkdir(parents=True, exist_ok=True)
     temp = path.with_suffix(path.suffix + ".tmp")
@@ -351,7 +356,7 @@ def run_matrix(args):
 
     done = existing_keys(index, expected_sha) if args.resume else set()
     all_cases = ["baseline", *fixture_ids()]
-    requested = [item.strip().upper() for item in args.ids.split(",") if item.strip()] if args.ids else all_cases
+    requested = [normalize_fixture_id(item) for item in args.ids.split(",") if item.strip()] if args.ids else all_cases
     unknown = set(requested) - set(all_cases)
     if unknown:
         raise RuntimeError(f"Unknown fixture IDs: {', '.join(sorted(unknown))}")
