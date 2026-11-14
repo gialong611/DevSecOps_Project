@@ -3,6 +3,7 @@
 > **RQ3**: Chính sách nào chặn đủ lỗi nghiêm trọng mà ít chặn nhầm mã sạch nhất?
 
 > **Giới hạn bằng chứng:** bảng này so sánh quyết định đã ghi trong fixture; chưa thay thế việc chạy từng mẫu qua scanner và gate thật.
+> **Cách sử dụng:** chỉ dùng để giải thích hành vi policy; không báo cáo như recall/precision đo từ scanner live.
 
 ## Bảng so sánh
 

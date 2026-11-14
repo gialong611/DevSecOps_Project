@@ -172,6 +172,8 @@ def compute_metrics(
 
     return {
         "policy": policy,
+        "evidence_status": "exploratory-policy-replay" if recorded is not None else "severity-simulation",
+        "empirical_scanner_metric": False,
         "total_defects": total_defects,
         "total_cleans": total_cleans,
         "TP": tp,
@@ -197,7 +199,10 @@ def compute_metrics(
 def print_report(metrics: dict):
     """Print formatted E1 report to stdout."""
     print("=" * 60)
-    print(f"E1 – Kết quả policy (Policy: {metrics['policy'].upper()})")
+    print("E1 – KẾT QUẢ THĂM DÒ / PHÁT LẠI QUYẾT ĐỊNH GATE")
+    print(f"Trạng thái bằng chứng: {metrics['evidence_status']}")
+    print("Không diễn giải các tỷ lệ này thành hiệu năng scanner live.")
+    print(f"Policy: {metrics['policy'].upper()}")
     print(f"Nguồn quyết định: {metrics['decision_source']}")
     print("=" * 60)
     print(f"Tổng lỗi gieo:      {metrics['total_defects']}")

@@ -30,70 +30,71 @@ Pipeline chạy quá 10 phút.
 
 ## Mục 3. Trạng thái nguồn dữ liệu đang commit
 
-- Baseline CI mới nhất đã phân tích là commit
-  `cbcef8e32d5b007229be5e424409e8ee00fe278e`:
-  [run #13](https://github.com/gialong611/DevSecOps_Project/actions/runs/41288998886).
-  Metadata và ID artifact nằm ở `results/metrics/ci_baseline_latest.json`.
-  Gate có 275 findings, 0 blockers, 30 warnings và quyết định `WARN`; đây là
-  run `push`, còn ngưỡng 20 warnings áp dụng cho PR nên chưa đo trực tiếp PR bị
-  tê liệt.
-- Raw artifact E4 đã được đọc: Trivy giảm 4.721→188 record (-4.533), gồm
-  CRITICAL 21→0, HIGH 531→52, MEDIUM 2.037→71, LOW 2.030→64, UNKNOWN 102→1;
-  SBOM giảm 22.921→2.860 package (-20.061). Cả hai image dùng Trivy 0.76.1,
-  cùng snapshot DB `2026-11-01 07:08:40 UTC`, Debian 13.7 và amd64; Python
-  khác phiên bản 3.12.15→3.12.16. Vì vậy không quy delta cho từng kiểm soát
-  riêng lẻ. Hai image chỉ có local image ID, không có `RepoDigests`.
-- E3 run #13 có 28s (security-scan), 37s (IaC), 171s (image); critical path
-  của ba job scan song song là 171s. Tổng 236s là phép cộng tuần tự ước tính,
-  không phải workflow tuần tự đã đo. Run #11 có 148s trên commit khác, không
-  gộp với #13 thành lần lặp. Chưa so sánh cache bật/tắt hoặc mức song song.
-- Checkov artifact `checkov.json` là stream gồm 3 JSON document liên tiếp.
-  Loader của dự án có thể đọc stream, còn `json.load` tiêu chuẩn báo `Extra
-  data` ở dòng 6354. Workflow local hiện lưu nguyên bản vào
-  `checkov.stream.json` rồi dùng `jq -s` tạo `checkov.json` dạng JSON array;
-  cần CI run tiếp theo để xác nhận output mới.
-- 15 cảnh báo MEDIUM đã được phân nhóm: 5 Python, 5 pip, 2 pytest và 3
-  Starlette. Các cập nhật Python 3.13.18, pip 26.2.2 và pytest 9.0.3 trong
-  working tree nhắm tới 12 cảnh báo; 3 cảnh báo Starlette được hoãn để đánh
-  giá tương thích. 18 warning là dự báo nếu cả 12 advisory biến mất và không
-  có cảnh báo mới, không phải kết quả đo. Xem
-  `results/metrics/ci_warning_triage_run13.md`.
-- `findings.csv` là bộ finding dự kiến gắn với lỗi gieo cài, không phải bản xuất
-  thô của Semgrep/Gitleaks/Trivy/Checkov.
-- `decisions.csv` ghi các quyết định fixture theo policy. E1/E2 dùng các quyết
-  định này; chúng không chứng minh scanner đã bắt lỗi nếu thiếu báo cáo thô và
-  liên kết GitHub Actions cho từng mẫu.
-- `runs.csv` hiện không có URL workflow run, mỗi `change_id` chỉ có một dòng,
-  và không phân nhóm cache bật/tắt hoặc chế độ song song. Không dùng các thống
-  kê này để kết luận thời gian CI đại diện cho pipeline.
-- Patch N01–N08 hiện có thể chạy độc lập qua workflow dispatch. Chưa có lần
-  chạy CI thật ghi nhận scanner false positive và gate false block cho từng control.
-- E4 độ nhạy KEV/EPSS T0 hiện là mô phỏng; chỉ kết luận thay đổi dữ liệu theo
-  thời gian khi lưu được ít nhất hai snapshot có ngày/nguồn. E4 chỉ được coi là
-  so sánh image/SBOM hoàn tất khi output live chứa cả hai
-  báo cáo Trivy và hai SBOM Syft. Workflow image chạy script này và lưu output
-  trong artifact `report-image`.
-- `report-gate` có `reports/experiment/observation.json`: bản ghi cho đúng một
-  workflow run, có thể là baseline hoặc một patch fixture. Bản ghi gồm run URL,
-  commit, phiên bản tool đã ghim, quyết định gate, metadata thời điểm cập nhật
-  vulnerability DB của Trivy, thống kê finding và SHA-256 của các báo cáo thô.
-  `evidence_status` là
-  `partial` nếu thiếu báo cáo/timing/gate hoặc không có run URL. Bản ghi này
-  giúp truy vết một lần chạy, nhưng chưa thay cho phép thử từng patch D/N/C hay
-  các lần lặp E3. Cấu trúc được mô tả tại
-  `schemas/scan-observation.schema.json` và workflow xác thực schema sau khi tạo.
-- Chạy thủ công workflow `DevSecOps CI` với `fixture_id=baseline`, sau đó chạy
-  từng `D01`–`D28`, `C01`–`C10` và `N01`–`N08` để áp patch độc lập, quét working tree và lưu
-  gate của cả G0/G1/G2. Tải artifact `report-gate` của các run vào cùng thư mục,
-  rồi dùng `python tests/analyze_fixture_observations.py --input-dir <thu_muc_artifact>
-  --out-dir results/metrics/live`. Bộ tổng hợp so fingerprint với baseline cùng
-  commit/tool versions/Trivy DB snapshot và chỉ tính finding mới trên file mục tiêu. Báo cáo tách
-  scanner false positive trên N controls khỏi gate false block trên C changes.
-  Trạng thái chỉ là complete sau khi đủ tất cả D/C/N và một baseline cùng commit.
-  Bộ tổng hợp yêu cầu các run có cùng phiên bản công cụ và cùng Trivy database
-  snapshot. Nếu metadata DB khác baseline, không gộp các run đó; chạy lại cả
-  nhóm với một baseline mới để tránh so findings từ hai tập dữ liệu lỗ hổng khác
-  nhau.
+- Run GitHub Actions mới nhất đã biết là [run #14](https://github.com/gialong611/DevSecOps_Project/actions/runs/41324476069), commit
+  `3eed4d8dc9035af4498d8805c8f48876f04ea656`; các job CI chính thành công.
+  Chỉ metadata artifact được lấy từ GitHub; nội dung ZIP chưa được trích vào
+  workspace để phân tích nên chưa nhập số liệu mới vào kết quả.
+- Các thư mục artifact hiện có trên máy (`D:\Downloads\report-* (1)` và
+  `D:\Downloads\sbom`) là run #13: `observation.json` ghi run ID `41288998886`,
+  commit `cbcef8e32d5b007229be5e424409e8ee00fe278e` và schema v2. Chúng xác
+  nhận lại số liệu run #13, không phải #14.
+- Artifact `report-scan` của run #14 hết hạn `2026-11-15 16:05:51 UTC`; tải
+  artifact này trước hạn. Artifact #14 còn lại hết hạn `2027-01-30`.
+- Số liệu phân tích cũ thuộc [run #13](https://github.com/gialong611/DevSecOps_Project/actions/runs/41288998886): gate có 275 findings, 0 blockers, 30 warnings; E3 có một quan sát cho 3 job scan; E4 có Python khác minor patch version và không có registry digest. Đây là dữ liệu lịch sử/thăm dò, không gộp thành nhiều lần lặp và không dùng làm kết quả nhân quả.
+- `findings.csv`, `decisions.csv` và `runs.csv` là dữ liệu thiết kế/thăm dò. E1/E2 cũ là policy replay; E3 cũ không có URL run. Các tệp này không chứng minh scanner thực sự phát hiện lỗi.
+- Run #14 có `report-scan`, `report-gate`, `report-iac`, `report-image` và `sbom`, nhưng chỉ metadata được lấy; chưa suy ra finding count từ trạng thái xanh của workflow.
+- E4 T0 KEV/EPSS là mô phỏng. Chỉ được gọi là live khi có hai báo cáo Trivy, hai SBOM Syft, tool version, Python/OS/architecture và snapshot vulnerability DB xác nhận giống nhau; nếu không, báo `limited`/`incomplete` và không quy kết delta.
+- Observation schema tại `schemas/scan-observation.schema.json` ghi run URL, commit, phiên bản tool, timing, cache profile, raw report SHA-256, quyết định G0/G1/G2 và trạng thái E4 riêng. Observation E1–E3 không bị đánh `partial` chỉ vì E4 được chủ động bỏ qua.
+
+### Thu thập lại fixture D/C/N và E3
+
+Đẩy workflow/script mới lên GitHub trước; sau đó chạy từ thư mục `Code/DevSecOps`
+trên máy đã đăng nhập `gh auth login` và có quyền dispatch workflow, đọc run và
+tải artifact. Script tự ghim một SHA cho toàn bộ study, tải artifact nhỏ cho
+từng run, ghi URL/run ID/job timing, và hỗ trợ tiếp tục bằng `--resume`.
+
+```bash
+# Baseline + 28 D + 10 C + 8 N, sau đó tạo báo cáo live E1/E2.
+python tests/run_fixture_matrix.py --ref main --out-dir tests/results/live-study
+
+# Ít nhất 5 lượt mỗi profile; chạy warm-up trước và loại khỏi thống kê.
+python tests/run_fixture_matrix.py --ref main --skip-fixtures \
+  --e3-cold-repeats 5 --e3-warm-repeats 5 \
+  --out-dir tests/results/e3-live
+
+# Tiếp tục sau khi bị ngắt, dùng đúng thư mục và cùng commit.
+python tests/run_fixture_matrix.py --ref main --skip-fixtures \
+  --e3-cold-repeats 5 --e3-warm-repeats 5 \
+  --out-dir tests/results/e3-live --resume
+```
+
+Fixture matrix mặc định gồm 47 lượt (baseline + 46 mẫu); E3 thêm 11 lượt
+(1 warm-up + 5 cold + 5 warm). Nếu Trivy DB hoặc tool versions khác baseline,
+analyzer E1/E2 sẽ báo lỗi và không gộp số liệu. Chạy lại nhóm trong cùng cửa sổ
+snapshot rồi mới công bố recall/false-positive/false-block. E3 hiện đo pip cache
+trong khi scanner jobs vẫn chạy song song; không diễn giải như so sánh tuần tự.
+
+Sau study, xem `tests/results/live-study/metrics/e1-e2-live/` và
+`tests/results/e3-live/`, kiểm tra URL từng case trong `run-index.json`, rồi mới
+chuyển kết quả đã xác minh sang DOCX. PPTX không thuộc phạm vi cập nhật.
+
+### Phân tích artifact E4 đã tải
+
+Nếu đã giải nén artifact `report-image` và `report-gate` cùng một run, xác minh
+run ID/commit và đối chiếu summary với raw reports bằng:
+
+```bash
+python tests/analyze_e4_artifact.py \
+  --artifact-dir "<thu_muc_report-image>" \
+  --gate-artifact-dir "<thu_muc_report-gate>" \
+  --out-json tests/results/metrics/e4_image_remediation.json \
+  --out-md tests/results/metrics/e4_image_remediation.md
+```
+
+Script kiểm tra lại số lỗ hổng theo severity và số thành phần SBOM từ raw JSON,
+lưu SHA-256, image ID/digest, Python/OS/architecture, tool version và DB
+snapshot. Nếu thiếu bằng chứng per-scan hoặc có yếu tố khác nhau, kết quả được
+đánh `limited` và `causal_attribution_allowed=false`.
 
 Khi thu thập lại, lưu artifact scanner không chuẩn hóa, kết quả gate của G0/G1/G2,
 URL run, hash commit, phiên bản tool, thời gian bắt đầu/kết thúc và cấu hình

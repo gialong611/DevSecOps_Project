@@ -111,8 +111,16 @@ def load_runs_data(path: Path) -> tuple[list[float], dict[str, list[float]]]:
 
 def build_markdown_report(stats: dict) -> str:
     """Generate Markdown report for E3."""
+    if stats["evidence_status"] == "unverified-exploratory-csv":
+        evidence_label = "THĂM DÒ – KHÔNG CÓ LINK CI"
+    elif stats["evidence_status"] == "traceable-single-run":
+        evidence_label = "TRUY VẾT ĐƯỢC – MỚI 1 LƯỢT"
+    else:
+        evidence_label = "TRUY VẾT ĐƯỢC – CHƯA KIỂM SOÁT CẤU HÌNH"
     lines = [
         "# E3 – Đánh giá thời gian pipeline (Pipeline Duration)",
+        "",
+        f"> **Trạng thái bằng chứng:** {evidence_label}. Không dùng số liệu này để kết luận hiệu quả cache/song song.",
         "",
         "> **RQ4 / Mục 5.5**: Đánh giá thời gian thực thi pipeline bằng Trung vị (p50), Phân vị 90 (p90) và số lần đo (N).",
         "",
@@ -123,19 +131,23 @@ def build_markdown_report(stats: dict) -> str:
     ]
 
     for group_name, s in stats["groups"].items():
-        if stats["evidence_status"] != "traceable":
+        if stats["evidence_status"] == "unverified-exploratory-csv":
             status = "Chưa xác thực"
+        elif stats["evidence_status"] == "traceable-single-run":
+            status = "Truy vết 1 lượt"
         else:
-            status = "Vượt ngưỡng" if s["paralysis_exceeded"] else "Dưới ngưỡng (đã truy vết)"
+            status = "Vượt ngưỡng" if s["paralysis_exceeded"] else "Truy vết; cấu hình chưa kiểm soát"
         lines.append(
             f"| **{group_name.capitalize()}** | {s['N']} | {s['median_p50']}s | {s['p90']}s | {s['p95']}s | {s['mean']}s | {s['min']}s | {s['max']}s | {status} |"
         )
 
     overall = stats["overall"]
-    if stats["evidence_status"] != "traceable":
+    if stats["evidence_status"] == "unverified-exploratory-csv":
         overall_status = "Chưa xác thực"
+    elif stats["evidence_status"] == "traceable-single-run":
+        overall_status = "Truy vết 1 lượt"
     else:
-        overall_status = "Vượt ngưỡng" if overall["paralysis_exceeded"] else "Dưới ngưỡng (đã truy vết)"
+        overall_status = "Vượt ngưỡng" if overall["paralysis_exceeded"] else "Truy vết; cấu hình chưa kiểm soát"
     lines.extend([
         f"| **Tổng thể** | {overall['N']} | {overall['median_p50']}s | {overall['p90']}s | {overall['p95']}s | {overall['mean']}s | {overall['min']}s | {overall['max']}s | {overall_status} |",
         "",
@@ -182,7 +194,7 @@ def main():
     if not has_run_links:
         evidence_note = (
             "Chưa truy vết được: runs.csv không có liên kết GitHub Actions cho "
-            "từng phép đo; các giá trị chỉ nên xem là dữ liệu thăm dò."
+            "từng phép đo; các giá trị là dữ liệu thiết kế/thăm dò, không phải số đo CI."
         )
     elif not repeated_cases:
         evidence_note = (
@@ -198,7 +210,13 @@ def main():
     stats = {
         "experiment": "E3",
         "description": "Pipeline execution duration analysis",
-        "evidence_status": "traceable" if has_run_links else "unverified",
+        "evidence_status": (
+            "traceable-single-run" if has_run_links and not repeated_cases
+            else "traceable-repeated-uncontrolled" if has_run_links
+            else "unverified-exploratory-csv"
+        ),
+        "data_origin": "results/raw/runs.csv; not a traceable Actions timing export" if not has_run_links else "results/raw/runs.csv with GitHub run links",
+        "empirical_claim_allowed": False,
         "evidence_note": evidence_note,
         "threshold_seconds": PIPELINE_PARALYSIS_THRESHOLD_SECONDS,
         "overall": compute_duration_stats(overall_durations),
@@ -215,10 +233,10 @@ def main():
     print(f"Trung bình (Mean):         {stats['overall']['mean']}s (Std: {stats['overall']['std']}s)")
     print(f"Min / Max:                 {stats['overall']['min']}s / {stats['overall']['max']}s")
     print(f"Ngưỡng tê liệt (10p):      {PIPELINE_PARALYSIS_THRESHOLD_SECONDS}s")
-    if stats["evidence_status"] != "traceable":
+    if stats["evidence_status"] == "unverified-exploratory-csv":
         status = "CHƯA XÁC THỰC"
     else:
-        status = "VƯỢT NGƯỠNG" if stats["overall"]["paralysis_exceeded"] else "DƯỚI NGƯỠNG (ĐÃ TRUY VẾT)"
+        status = "VƯỢT NGƯỠNG" if stats["overall"]["paralysis_exceeded"] else "ĐÃ TRUY VẾT, CHƯA ĐỦ THIẾT KẾ SO SÁNH"
     print(f"Trạng thái kiểm tra:       {status}")
     print("=" * 65)
 

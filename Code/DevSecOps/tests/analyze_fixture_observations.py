@@ -140,11 +140,24 @@ def main() -> int:
     truth = load_ground_truth(args.ground_truth)
     observations, errors = load_observations(args.input_dir)
     incomplete = [item for item in observations if item.get("evidence_status") != "complete"]
+    complete_fixture_ids = {
+        item.get("fixture_id", "baseline")
+        for item in observations
+        if item.get("evidence_status") == "complete"
+    }
+    excluded_incomplete_observations = []
     for item in incomplete:
-        errors.append(
-            f"excluding incomplete observation for {item.get('fixture_id', 'unknown')}: "
-            f"{item.get('_source_path')}"
-        )
+        fixture_id = item.get("fixture_id", "unknown")
+        excluded_incomplete_observations.append({
+            "fixture_id": fixture_id,
+            "source_path": item.get("_source_path"),
+            "issues": item.get("issues", []),
+        })
+        if fixture_id not in complete_fixture_ids:
+            errors.append(
+                f"no complete observation for {fixture_id}; incomplete attempt: "
+                f"{item.get('_source_path')}"
+            )
     observations = [item for item in observations if item.get("evidence_status") == "complete"]
     for observation in observations:
         missing_policy_reports = [
@@ -341,6 +354,7 @@ def main() -> int:
         "negative_controls_expected": len(controls),
         "negative_controls_measured": len(set(controls) & supplied_cases),
         "negative_controls_unmeasured": sorted(set(controls) - supplied_cases),
+        "excluded_incomplete_observations": excluded_incomplete_observations,
         "negative_control_scanner_outcomes": {
             **control_scanner_counts,
             "expected_tool_false_positive_rate": (

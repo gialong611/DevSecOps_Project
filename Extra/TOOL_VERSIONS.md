@@ -28,7 +28,7 @@ Ghi chú: Trivy được gọi trực tiếp bằng CLI ghim phiên bản (khôn
 | Trivy | 0.76.1 | github.com/aquasecurity/trivy | sha256 theo `trivy_*_checksums.txt` |
 | Syft | 1.54.1 | github.com/anchore/syft | sha256 theo `syft_*_checksums.txt` |
 | Grype | 0.120.1 | github.com/anchore/grype | sha256 theo `grype_*_checksums.txt` |
-| Checkov | 3.3.22 | PyPI (pipx) | ghim `==3.3.22` |
+| Checkov | 3.3.22 | PyPI (dedicated IaC job) | ghim `==3.3.22` |
 | Gitleaks | 8.30.1 | github.com/gitleaks/gitleaks | sha256 theo `gitleaks_*_checksums.txt` |
 | Conftest (OPA 1.21.1) | 0.71.1 | github.com/open-policy-agent/conftest | sha256 theo `checksums.txt` |
 | Semgrep | 1.183.0 | PyPI (pip) | ghim `==1.183.0` |
@@ -40,8 +40,9 @@ Ghi chú: Trivy được gọi trực tiếp bằng CLI ghim phiên bản (khôn
 | Thành phần | Phiên bản | Ghi chú |
 |---|---|---|
 | Runner | ubuntu-24.04 | ghim trong `runs-on` |
-| Python (job test/scan/gate) | 3.12 | `actions/setup-python` |
-| Python (phát triển cục bộ) | >= 3.11 | theo `requirements.txt` |
+| Python (job test/scan/gate) | 3.13.18 | `actions/setup-python` |
+| pip / pytest | 26.2.2 / 9.0.3 | pip và pytest được ghim trong workflow/requirements |
+| Python (phát triển cục bộ) | >= 3.11 | `Code/DevSecOps/src/requirements.txt` |
 
 ## 4. Nguyên tắc cập nhật
 
@@ -49,3 +50,5 @@ Ghi chú: Trivy được gọi trực tiếp bằng CLI ghim phiên bản (khôn
 2. Binary tải bằng HTTPS từ trang phát hành chính thức, kiểm `sha256sum -c` trước khi cài.
 3. Mỗi lần đổi phiên bản phải chạy lại: `run_policy_tests.ps1`, `pytest`, E1–E4
    và ghi kết quả mới vào `tests/results/metrics/`.
+4. E3 `cache_mode=warm` chỉ bật pip cache của setup-python; `cold` tắt cache đó.
+   Không mô tả đây là cache của Trivy DB hay của scanner binary.

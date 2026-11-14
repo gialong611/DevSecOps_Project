@@ -58,21 +58,6 @@
     "changed_count": 2
   },
   "live": {
-    "evidence_status": "traceable_raw_artifact_analyzed",
-    "run_id": 41288998886,
-    "run_attempt": 1,
-    "run_url": "https://github.com/gialong611/DevSecOps_Project/actions/runs/41288998886/attempts/1",
-    "commit": "cbcef8e32d5b007229be5e424409e8ee00fe278e",
-    "fixture_id": "baseline",
-    "tool_versions": {
-      "trivy": "0.76.1",
-      "syft": "1.54.1"
-    },
-    "trivy_vulnerability_database": {
-      "version": "2",
-      "updated_at": "2026-11-01 07:08:40.846369079 +0000 UTC",
-      "next_update": "2026-11-02 07:08:40.846368621 +0000 UTC"
-    },
     "before": {
       "vulnerabilities": {
         "CRITICAL": 21,
@@ -84,6 +69,8 @@
       "sbom_packages": 22921,
       "image": {
         "image_id": "sha256:5310731d113763ab98be5751527dbea9ccae7fbbc03b5a6927ac95e0a25fc1f2",
+        "image_config_digest": "sha256:5310731d113763ab98be5751527dbea9ccae7fbbc03b5a6927ac95e0a25fc1f2",
+        "manifest_digest_available": false,
         "repo_tags": [
           "devsecops-e4-before:lab"
         ],
@@ -95,6 +82,7 @@
         "architecture": "amd64",
         "python_version": "3.12.15"
       },
+      "vulnerabilities_total": 4721,
       "sbom": {
         "serial_number": "urn:uuid:4d53337c-12b3-462a-92cb-9da7dd4c80f2",
         "timestamp": "2026-11-01T08:31:07Z",
@@ -105,8 +93,7 @@
           "version": "lab"
         },
         "components": 22921
-      },
-      "vulnerabilities_total": 4721
+      }
     },
     "after": {
       "vulnerabilities": {
@@ -119,6 +106,8 @@
       "sbom_packages": 2860,
       "image": {
         "image_id": "sha256:c99a5a371e35e898fffb680ccb384c9132bf7965db403e47cc0d78a257f639fa",
+        "image_config_digest": "sha256:c99a5a371e35e898fffb680ccb384c9132bf7965db403e47cc0d78a257f639fa",
+        "manifest_digest_available": false,
         "repo_tags": [
           "devsecops-app:scan",
           "devsecops-e4-after:lab"
@@ -131,6 +120,7 @@
         "architecture": "amd64",
         "python_version": "3.12.16"
       },
+      "vulnerabilities_total": 188,
       "sbom": {
         "serial_number": "urn:uuid:534fa66a-7c87-4517-b2b8-f91a6143d0eb",
         "timestamp": "2026-11-01T08:31:11Z",
@@ -141,37 +131,58 @@
           "version": "lab"
         },
         "components": 2860
-      },
-      "vulnerabilities_total": 188
+      }
     },
     "delta": {
       "vulnerabilities_total": -4533,
-      "sbom_packages": -20061,
-      "vulnerabilities_by_severity": {
-        "CRITICAL": -21,
-        "HIGH": -479,
-        "LOW": -1966,
-        "MEDIUM": -1966,
-        "UNKNOWN": -101
-      }
+      "sbom_packages": -20061
     },
     "comparability": {
       "same_application_build_context": true,
-      "same_trivy_version": true,
-      "same_trivy_database_snapshot": true,
+      "same_python_version": false,
       "same_os_release": true,
       "same_architecture": true,
-      "same_python_version": false,
+      "shared_trivy_database_snapshot": false,
+      "job_level_trivy_snapshot_recorded": true,
+      "per_scan_trivy_snapshot_verified": false,
       "confounds": [
         {
           "dimension": "Python version",
           "before": "3.12.15",
-          "after": "3.12.16",
-          "interpretation": "Delta được đo thật nhưng không thể quy hoàn toàn cho bốn kiểm soát Dockerfile vì phiên bản Python khác nhau."
+          "after": "3.12.16"
         }
       ],
-      "repo_digests_available": false,
-      "interpretation": "Image ID là ID image cục bộ; Trivy không có RepoDigests cho hai image E4 này. So sánh cùng kiến trúc, OS và DB; Python khác bản vá. Dockerfile.vuln đã được cập nhật ở working tree để lượt E4 sau dùng cùng phiên bản Python với runtime."
+      "causal_attribution_allowed": false,
+      "interpretation": "Run 13 shows a real before/after delta, but Python versions differ and the Trivy DB was recorded once at job level rather than independently around each scan. Treat the delta as descriptive; do not attribute it solely to Dockerfile remediation."
+    },
+    "evidence_status": "limited",
+    "provenance": {
+      "ci_run_id": "41288998886",
+      "ci_run_attempt": "1",
+      "ci_run_url": "https://github.com/gialong611/DevSecOps_Project/actions/runs/41288998886/attempts/1",
+      "commit": "cbcef8e32d5b007229be5e424409e8ee00fe278e",
+      "fixture_id": "baseline",
+      "tool_versions": {
+        "trivy": "0.76.1",
+        "syft": "1.54.1"
+      },
+      "trivy_vulnerability_database": {
+        "version": "2",
+        "updated_at": "2026-11-01 07:08:40.846369079 +0000 UTC",
+        "next_update": "2026-11-02 07:08:40.846368621 +0000 UTC"
+      },
+      "trivy_database_snapshot_scope": "one image-job snapshot; not captured per E4 scan"
+    },
+    "raw_artifact_sha256": {
+      "trivy_before": "1e7898997eac57463f03c659181223dca4b0271a8f673ac9b919423dc4956fd2",
+      "trivy_after": "3f09f8349178a47477601373b87e7d75aeec7a076e17cfe7f029e1b12008e9aa",
+      "sbom_before": "af26d15cbf661712529c59882a061fe784053261e50b4e33c029c66c95b83051",
+      "sbom_after": "92492adc81a601b819e39f249ac0c0e6c0d93cb761c5e26dbd92f95f75146af6"
     }
-  }
+  },
+  "evidence_status": "limited",
+  "causal_attribution_allowed": false,
+  "source_run_url": "https://github.com/gialong611/DevSecOps_Project/actions/runs/41288998886/attempts/1",
+  "source_commit": "cbcef8e32d5b007229be5e424409e8ee00fe278e",
+  "data_origin": "raw Trivy and Syft reports from the report-image GitHub Actions artifact"
 }

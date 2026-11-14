@@ -1,4 +1,5 @@
 name: DevSecOps CI
+run-name: DevSecOps CI | ${{ inputs.fixture_id || 'baseline' }} | ${{ inputs.cache_mode || 'cold' }} | ${{ inputs.benchmark_role || 'measurement' }} | ${{ github.sha }} | ${{ inputs.study_id || github.run_id }}
 
 on:
   push:
@@ -11,6 +12,32 @@ on:
         description: "Dxx/Cxx/Nxx patch to evaluate, or baseline"
         required: false
         default: baseline
+        type: string
+      run_e4:
+        description: "Run the slower before/after image remediation experiment"
+        required: false
+        default: true
+        type: boolean
+      cache_mode:
+        description: "Pip cache profile for controlled E3 timing runs"
+        required: false
+        default: cold
+        type: choice
+        options:
+          - cold
+          - warm
+      benchmark_role:
+        description: "Mark warm-up runs so the E3 analyzer excludes them"
+        required: false
+        default: measurement
+        type: choice
+        options:
+          - measurement
+          - warmup
+      study_id:
+        description: "Unique identifier for an automated evidence collection study"
+        required: false
+        default: manual
         type: string
 
 # Quyền tối thiểu toàn workflow (4.5): từng job xin thêm quyền riêng khi cần.
@@ -27,13 +54,17 @@ env:
   CONFTEST_VERSION: "0.71.1"
   CONTEST_POLICY: g2
   FIXTURE_ID: ${{ github.event.inputs.fixture_id || 'baseline' }}
+  CACHE_MODE: ${{ inputs.cache_mode || 'cold' }}
+  BENCHMARK_ROLE: ${{ inputs.benchmark_role || 'measurement' }}
+  RUN_E4: ${{ inputs.run_e4 && (inputs.fixture_id == '' || inputs.fixture_id == 'baseline') }}
+  SCAN_EXECUTION_MODE: parallel
 
 defaults:
   run:
     working-directory: Code/DevSecOps
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event.inputs.fixture_id || 'baseline' }}
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event.inputs.fixture_id || 'baseline' }}-${{ inputs.cache_mode || 'cold' }}
   cancel-in-progress: false
 
 jobs:
@@ -51,7 +82,7 @@ jobs:
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.13.18"
-          cache: pip
+          cache: ${{ inputs.cache_mode == 'warm' && 'pip' || '' }}
           cache-dependency-path: Code/DevSecOps/src/requirements.txt
 
       - name: Install dependencies
@@ -63,7 +94,7 @@ jobs:
         run: python -m compileall -q src
 
       - name: Run tests
-        run: python -m pytest -v src/test
+        run: python -m pytest -v src/test tests
 
   # ─────────────────────────────────────────────────────────────
   # 2) SAST + Secret + SCA (chế độ thu thập: thoát 0, chỉ báo cáo)
@@ -95,6 +126,10 @@ jobs:
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.13.18"
+          cache: ${{ inputs.cache_mode == 'warm' && 'pip' || '' }}
+          cache-dependency-path: |
+            Extra/TOOL_VERSIONS.md
+            Code/DevSecOps/src/requirements.txt
 
       - name: Install Semgrep
         run: python -m pip install "semgrep==${SEMGREP_VERSION}"
@@ -200,6 +235,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Set up Python for Checkov
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13.18"
+          cache: ${{ inputs.cache_mode == 'warm' && 'pip' || '' }}
+          cache-dependency-path: |
+            Extra/TOOL_VERSIONS.md
+            Code/DevSecOps/tests/README.md
+
       - name: Apply selected experiment fixture
         if: github.event_name == 'workflow_dispatch' && inputs.fixture_id != '' && inputs.fixture_id != 'baseline'
         run: python tests/apply_fixture_patch.py --id "$FIXTURE_ID"
@@ -217,7 +261,7 @@ jobs:
           trivy --version
 
       - name: Cài Checkov (ghim)
-        run: pipx install "checkov==${CHECKOV_VERSION}"
+        run: python -m pip install "checkov==${CHECKOV_VERSION}"
 
       - name: Checkov (soft-fail, chỉ báo cáo)
         run: |
@@ -329,17 +373,28 @@ jobs:
         run: python tests/record_trivy_runtime.py --out reports/experiment/trivy-runtime-image.json
 
       - name: E4 image remediation (before/after SBOM and vulnerabilities)
-        if: env.FIXTURE_ID == 'baseline'
+        if: github.event_name == 'workflow_dispatch' && inputs.run_e4 && env.FIXTURE_ID == 'baseline'
         run: >-
           python tests/e4_image_remediation.py --live --out-dir reports/e4
           --trivy-runtime-meta reports/experiment/trivy-runtime-image.json
+          --strict-comparability
 
-      - name: Mark E4 omitted from patch fixture run
-        if: env.FIXTURE_ID != 'baseline' && !contains(fromJSON('["D12","D13","D14","D15"]'), env.FIXTURE_ID)
+      - name: Mark E4 intentionally omitted from this run
+        if: always() && !(github.event_name == 'workflow_dispatch' && inputs.run_e4 && env.FIXTURE_ID == 'baseline')
         run: |
-          mkdir -p reports/experiment
-          printf '{"skipped":["e4-live-image-remediation"],"reason":"E4 is a separate baseline experiment and runs only for the baseline dispatch."}\n' \
-            > reports/experiment/skipped-scans.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path("reports/experiment/skipped-scans.json")
+          record = json.loads(path.read_text()) if path.is_file() else {"skipped": []}
+          skipped = set(record.get("skipped", []))
+          skipped.add("e4-live-image-remediation")
+          record["skipped"] = sorted(skipped)
+          record["e4_reason"] = "E4 runs only when explicitly enabled on a baseline workflow_dispatch."
+          path.parent.mkdir(parents=True, exist_ok=True)
+          path.write_text(json.dumps(record, indent=2) + "\n")
+          PY
 
       - name: Record CI timing
         if: always()
@@ -495,6 +550,19 @@ jobs:
             Code/DevSecOps/gate_report.json
             Code/DevSecOps/pr_summary.md
           if-no-files-found: warn
+
+      - name: Upload gói observation gọn cho tổng hợp E1–E3
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.0
+        with:
+          name: experiment-${{ env.FIXTURE_ID }}
+          path: |
+            Code/DevSecOps/reports/experiment/observation.json
+            Code/DevSecOps/reports/experiment/gate-report-*.json
+            Code/DevSecOps/reports/timing/*.json
+            Code/DevSecOps/reports/e3-ci-run-timing.json
+          if-no-files-found: warn
+          retention-days: 90
 
   # ─────────────────────────────────────────────────────────────
   # 6) Release: push image theo digest, ký keyless bằng Cosign (chỉ trên main)

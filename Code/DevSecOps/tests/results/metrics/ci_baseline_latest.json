@@ -1,5 +1,24 @@
 {
-  "evidence_status": "workflow_success_gate_warn_raw_artifacts_analyzed_remediation_pending_ci",
+  "evidence_status": "latest_known_run_success_artifacts_not_analyzed_latest_analyzed_run_is_13",
+  "latest_known_run_not_analyzed": {
+    "run_id": 41324476069,
+    "run_number": 14,
+    "event": "push",
+    "branch": "main",
+    "head_sha": "3eed4d8dc9035af4498d8805c8f48876f04ea656",
+    "conclusion": "success",
+    "url": "https://github.com/gialong611/DevSecOps_Project/actions/runs/41324476069",
+    "artifacts_analyzed": false,
+    "metrics_imported": false,
+    "artifacts": [
+      {"name": "report-scan", "artifact_id": 13090882240, "expires_at": "2026-11-15T16:05:51Z"},
+      {"name": "report-gate", "artifact_id": 13090337819, "expires_at": "2027-01-30T16:05:12Z"},
+      {"name": "report-iac", "artifact_id": 13090408702, "expires_at": "2027-01-30T16:05:12Z"},
+      {"name": "report-image", "artifact_id": 13090224380, "expires_at": "2027-01-30T16:05:12Z"},
+      {"name": "sbom", "artifact_id": 13090462793, "expires_at": "2027-01-30T16:05:12Z"}
+    ],
+    "note": "The workflow jobs succeeded, but artifact contents have not been analyzed; values below belong to the previously analyzed run 13."
+  },
   "recorded_at": "2026-11-01T09:33:57Z",
   "run": {
     "run_id": 41288998886,

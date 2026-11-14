@@ -118,7 +118,8 @@ def main():
 
     # Print comparison table
     print("=" * 70)
-    print("E2 – So sánh chính sách G0 / G1 / G2")
+    print("E2 – SO SÁNH CHÍNH SÁCH (DỮ LIỆU THĂM DÒ)")
+    print("Các số liệu hiện tại phát lại quyết định fixture; chưa phải kết quả scanner live.")
     print("=" * 70)
     print()
     for m in all_metrics:
@@ -146,6 +147,9 @@ def main():
     comparison = {
         "experiment": "E2",
         "question": "RQ3",
+        "evidence_status": "exploratory-policy-replay",
+        "empirical_claim_allowed": False,
+        "decision_source": all_metrics[0]["decision_source"] if all_metrics else "unknown",
         "policies": all_metrics,
         "recommended_policy": best,
         "measurement_note": (
@@ -164,6 +168,7 @@ def main():
         "",
         "> **Giới hạn bằng chứng:** bảng này so sánh quyết định đã ghi trong fixture; "
         "chưa thay thế việc chạy từng mẫu qua scanner và gate thật.",
+        "> **Cách sử dụng:** chỉ dùng để giải thích hành vi policy; không báo cáo như recall/precision đo từ scanner live.",
         "",
         "## Bảng so sánh",
         "",

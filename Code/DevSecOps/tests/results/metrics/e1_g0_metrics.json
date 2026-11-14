@@ -1,5 +1,7 @@
 {
   "policy": "g0",
+  "evidence_status": "exploratory-policy-replay",
+  "empirical_scanner_metric": false,
   "total_defects": 28,
   "total_cleans": 10,
   "TP": 0,

@@ -18,6 +18,7 @@ Ba lớp phân tích:
 """
 
 import argparse
+import hashlib
 import json
 import os
 import shutil
@@ -154,6 +155,36 @@ def run(cmd, **kwargs):
     return subprocess.run(cmd, capture_output=True, text=True, **kwargs)
 
 
+def normalized_vulnerability_db(runtime: dict | None) -> dict | None:
+    databases = (runtime or {}).get("databases") or {}
+    entry = next(
+        (value for name, value in databases.items()
+         if "vulnerability" in name.casefold() and isinstance(value, dict)),
+        None,
+    )
+    if not entry:
+        return None
+    identity = {
+        key: entry.get(key)
+        for key in ("version", "updated_at", "next_update")
+        if entry.get(key) is not None
+    }
+    return identity if identity.get("updated_at") else None
+
+
+def capture_trivy_runtime(out_dir: Path, label: str) -> dict | None:
+    output = out_dir / f"trivy-runtime-{label}.json"
+    recorder = PROJECT_DIR / "tests" / "record_trivy_runtime.py"
+    captured = run([sys.executable, str(recorder), "--out", str(output)])
+    if captured.returncode != 0 or not output.is_file():
+        return None
+    try:
+        value = json.loads(output.read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return value if isinstance(value, dict) and not value.get("error") else None
+
+
 def live_comparison(before_dockerfile: Path, after_dockerfile: Path,
                     context: Path, out_dir: Path,
                     trivy_runtime_meta: Path | None = None) -> dict | None:
@@ -162,17 +193,41 @@ def live_comparison(before_dockerfile: Path, after_dockerfile: Path,
 
     out_dir.mkdir(parents=True, exist_ok=True)
     result = {}
+    observed_db_snapshots = []
+    prior_runtime = {}
+    try:
+        if trivy_runtime_meta and trivy_runtime_meta.is_file():
+            prior_runtime = json.loads(trivy_runtime_meta.read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError):
+        prior_runtime = {}
+    prior_db_snapshot = normalized_vulnerability_db(prior_runtime)
     for tag, dockerfile in (("before", before_dockerfile), ("after", after_dockerfile)):
         image = f"devsecops-e4-{tag}:lab"
         build = run(["docker", "build", "-f", str(dockerfile), "-t", image, str(context)])
         if build.returncode != 0:
             return {"error": f"docker build {tag} failed: {build.stderr[-500:]}"}
 
+        runtime = run(["docker", "run", "--rm", "--entrypoint", "python", image, "--version"])
+        if runtime.returncode != 0:
+            return {"error": f"could not read Python runtime in {tag} image: {runtime.stderr[-500:]}"}
+        python_version = runtime.stdout.strip().removeprefix("Python ")
+
         trivy_json = out_dir / f"trivy-image-{tag}.json"
-        scan = run(["trivy", "image", "--format", "json", "--output", str(trivy_json),
-                    "--exit-code", "0", image])
+        scan_args = ["trivy", "image", "--format", "json", "--output", str(trivy_json),
+                     "--exit-code", "0"]
+        if prior_db_snapshot:
+            # The CI image job has already populated the database and recorded
+            # its metadata. Do not let either E4 scan refresh it mid-comparison.
+            scan_args.append("--skip-db-update")
+        scan_args.append(image)
+        runtime_before = capture_trivy_runtime(out_dir, f"{tag}-before-scan")
+        scan = run(scan_args)
         if scan.returncode != 0 or not trivy_json.is_file():
             return {"error": f"Trivy scan {tag} failed: {scan.stderr[-500:]}"}
+        runtime_after = capture_trivy_runtime(out_dir, f"{tag}-after-scan")
+        db_before = normalized_vulnerability_db(runtime_before)
+        db_after = normalized_vulnerability_db(runtime_after)
+        observed_db_snapshots.extend((db_before, db_after))
         sbom_json = out_dir / f"sbom-{tag}.cdx.json"
         sbom = run(["syft", image, "-o", f"cyclonedx-json={sbom_json}"])
         if sbom.returncode != 0 or not sbom_json.is_file():
@@ -186,20 +241,22 @@ def live_comparison(before_dockerfile: Path, after_dockerfile: Path,
             data = json.loads(trivy_json.read_text(encoding="utf-8"))
             metadata = data.get("Metadata") or {}
             image_config = metadata.get("ImageConfig") or {}
-            docker_config = image_config.get("config") or {}
-            environment = docker_config.get("Env") or []
-            python_version = next(
-                (entry.split("=", 1)[1] for entry in environment
-                 if isinstance(entry, str) and entry.startswith("PYTHON_VERSION=")),
-                None,
-            )
             image_metadata = {
                 "image_id": metadata.get("ImageID"),
+                "image_config_digest": metadata.get("ImageID"),
+                "manifest_digest_available": bool(metadata.get("RepoDigests")),
                 "repo_tags": metadata.get("RepoTags") or [],
                 "repo_digests": metadata.get("RepoDigests") or [],
                 "os": metadata.get("OS") or {},
                 "architecture": image_config.get("architecture"),
                 "python_version": python_version,
+                "dockerfile": str(dockerfile),
+                "dockerfile_sha256": hashlib.sha256(dockerfile.read_bytes()).hexdigest(),
+                "dockerfile_base": next(
+                    (line.strip() for line in dockerfile.read_text(encoding="utf-8").splitlines()
+                     if line.strip().upper().startswith("FROM ")),
+                    None,
+                ),
             }
             for res in data.get("Results", []):
                 for v in res.get("Vulnerabilities", []) or []:
@@ -219,6 +276,8 @@ def live_comparison(before_dockerfile: Path, after_dockerfile: Path,
             "sbom_packages": packages,
             "image": image_metadata,
             "sbom": sbom_metadata,
+            "trivy_database_before_scan": db_before,
+            "trivy_database_after_scan": db_after,
         }
 
     if "before" in result and "after" in result:
@@ -272,19 +331,52 @@ def live_comparison(before_dockerfile: Path, after_dockerfile: Path,
             },
             "trivy_vulnerability_database": (runtime.get("databases") or {}).get("Vulnerability DB"),
         }
+        observed_snapshots_complete = bool(observed_db_snapshots) and all(observed_db_snapshots)
+        observed_snapshots_equal = (
+            observed_snapshots_complete
+            and all(snapshot == observed_db_snapshots[0] for snapshot in observed_db_snapshots)
+        )
+        prior_snapshot_matches = not prior_db_snapshot or (
+            observed_snapshots_complete and prior_db_snapshot == observed_db_snapshots[0]
+        )
+        result["provenance"]["trivy_database_snapshots_per_scan"] = {
+            "before_image_before_scan": b.get("trivy_database_before_scan"),
+            "before_image_after_scan": b.get("trivy_database_after_scan"),
+            "after_image_before_scan": a.get("trivy_database_before_scan"),
+            "after_image_after_scan": a.get("trivy_database_after_scan"),
+            "pre_e4_image_job_snapshot": prior_db_snapshot,
+        }
         result["comparability"] = {
             "same_application_build_context": True,
-            "same_python_version": b["image"].get("python_version") == a["image"].get("python_version"),
-            "same_os_release": b["image"].get("os") == a["image"].get("os"),
-            "same_architecture": b["image"].get("architecture") == a["image"].get("architecture"),
-            "shared_trivy_database_snapshot": bool(result["provenance"]["trivy_vulnerability_database"]),
+            "same_python_version": bool(
+                b["image"].get("python_version")
+                and b["image"].get("python_version") == a["image"].get("python_version")
+            ),
+            "same_os_release": bool(
+                b["image"].get("os")
+                and b["image"].get("os") == a["image"].get("os")
+            ),
+            "same_architecture": bool(
+                b["image"].get("architecture")
+                and b["image"].get("architecture") == a["image"].get("architecture")
+            ),
+            "shared_trivy_database_snapshot": observed_snapshots_equal and prior_snapshot_matches,
             "confounds": confounds,
             "interpretation": (
-                "The before and after builds use the same source context and one Trivy DB snapshot. "
-                "Attribute the aggregate delta to the Dockerfile/image change as a whole; do not "
-                "attribute it to an individual control when comparison dimensions differ."
+                "The image digest identifies the local image configuration; the Dockerfile SHA-256 "
+                "identifies each build recipe. Attribute the aggregate delta to the Dockerfile/image "
+                "change as a whole only when all comparability checks pass."
             ),
         }
+        comparable = result["comparability"]
+        comparable["causal_attribution_allowed"] = all((
+            comparable["same_application_build_context"],
+            comparable["same_python_version"],
+            comparable["same_os_release"],
+            comparable["same_architecture"],
+            comparable["shared_trivy_database_snapshot"],
+        ))
+        result["evidence_status"] = "comparable" if comparable["causal_attribution_allowed"] else "limited"
     return result
 
 
@@ -383,10 +475,17 @@ def build_markdown(metrics: dict) -> str:
         comparable = live.get("comparability", {})
         if comparable:
             lines.append(
+                f"- Trạng thái E4 live: **{live.get('evidence_status', 'limited')}**; "
+                f"được phép quy kết delta cho thay đổi Dockerfile: "
+                f"**{comparable.get('causal_attribution_allowed', False)}**."
+            )
+            lines.append(
                 f"- Cùng phiên bản Python: **{comparable.get('same_python_version')}**; "
                 f"cùng OS: **{comparable.get('same_os_release')}**; "
                 f"cùng architecture: **{comparable.get('same_architecture')}**; "
-                f"cùng Trivy DB snapshot: **{comparable.get('shared_trivy_database_snapshot')}**."
+                f"cùng Trivy DB snapshot đã xác minh theo từng lần quét: "
+                f"**{comparable.get('shared_trivy_database_snapshot')}**; "
+                f"snapshot mức job đã ghi: **{comparable.get('job_level_trivy_snapshot_recorded', 'không rõ')}**."
             )
             for confound in comparable.get("confounds", []):
                 lines.append(
@@ -397,6 +496,14 @@ def build_markdown(metrics: dict) -> str:
         db = provenance.get("trivy_vulnerability_database") or {}
         if provenance.get("ci_run_id"):
             lines.append(f"- CI run: `{provenance['ci_run_id']}`.")
+        for tag in ("before", "after"):
+            image = live[tag].get("image", {})
+            lines.append(
+                f"- `{tag}` config digest: `{image.get('image_config_digest') or 'không có'}`; "
+                f"manifest digest trên registry: "
+                f"`{', '.join(image.get('repo_digests') or []) or 'chưa có'}`; "
+                f"Dockerfile SHA-256: `{image.get('dockerfile_sha256') or 'không có'}`."
+            )
         if db.get("updated_at"):
             lines.append(f"- Trivy vulnerability DB cập nhật: `{db['updated_at']}`.")
     elif live and "error" in live:
@@ -427,6 +534,11 @@ def main():
     )
     parser.add_argument("--live", action="store_true",
                         help="Buật thử build/scan live kể cả khi tự phát hiện thất bại")
+    parser.add_argument(
+        "--strict-comparability",
+        action="store_true",
+        help="Fail if live E4 data is absent or Python/OS/architecture/Trivy DB snapshots are not comparable.",
+    )
     args = parser.parse_args()
 
     before = Path(args.before)
@@ -447,9 +559,22 @@ def main():
         if args.live or all(shutil.which(t) for t in ("docker", "trivy", "syft"))
         else None,
     }
-    live_failed = args.live and (
+    if metrics["live"] is None:
+        metrics["evidence_status"] = "not-measured-live"
+        metrics["causal_attribution_allowed"] = False
+    elif "error" in metrics["live"]:
+        metrics["evidence_status"] = "failed-live"
+        metrics["causal_attribution_allowed"] = False
+    else:
+        metrics["evidence_status"] = metrics["live"].get("evidence_status", "limited")
+        metrics["causal_attribution_allowed"] = bool(
+            metrics["live"].get("comparability", {}).get("causal_attribution_allowed")
+        )
+    live_failed = (args.live or args.strict_comparability) and (
         metrics["live"] is None or "error" in metrics["live"]
     )
+    if args.strict_comparability and metrics["live"] and "error" not in metrics["live"]:
+        live_failed = not metrics["live"].get("comparability", {}).get("causal_attribution_allowed", False)
 
     print("=" * 65)
     print("E4 – KHẮC PHỤC IMAGE / SBOM")
@@ -467,6 +592,7 @@ def main():
         else:
             print(f"Live: delta lỗ hổng {metrics['live']['delta']['vulnerabilities_total']:+d}, "
                   f"delta gói SBOM {metrics['live']['delta']['sbom_packages']:+d}")
+            print(f"So sánh: {metrics['live'].get('evidence_status', 'limited')}")
     else:
         print("Live: bỏ qua (thiếu docker/trivy/syft trên máy này)")
     print("=" * 65)

@@ -22,6 +22,8 @@ RAW_REPORTS = (
     "checkov.stream.json",
     "trivy-config.json",
     "grype-image.json",
+)
+E4_RAW_REPORTS = (
     "raw/e4/trivy-image-before.json",
     "raw/e4/trivy-image-after.json",
     "raw/e4/sbom-before.cdx.json",
@@ -75,6 +77,39 @@ def main() -> int:
         }
         if not contents.strip():
             issues.append(f"empty raw report: {name}")
+
+    fixture_id = os.environ.get("FIXTURE_ID", "baseline")
+    run_e4_requested = (
+        os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
+        and fixture_id == "baseline"
+        and os.environ.get("RUN_E4", "false").casefold() == "true"
+    )
+    e4_report_states = {}
+    for name in E4_RAW_REPORTS:
+        path = args.reports_dir / name
+        present = path.is_file()
+        e4_report_states[name] = {"present": present}
+        if present:
+            contents = path.read_bytes()
+            e4_report_states[name].update({
+                "size_bytes": len(contents),
+                "sha256": hashlib.sha256(contents).hexdigest(),
+            })
+    e4_summary_path = args.reports_dir / "e4" / "e4_image_remediation.json"
+    e4_summary, e4_error = load_json(e4_summary_path) if e4_summary_path.is_file() else (None, "missing")
+    e4_complete = (
+        run_e4_requested
+        and all(value["present"] for value in e4_report_states.values())
+        and not e4_error
+        and isinstance(e4_summary, dict)
+        and e4_summary.get("evidence_status") == "comparable"
+        and e4_summary.get("causal_attribution_allowed") is True
+    )
+    e4_evidence_status = (
+        "not_requested" if not run_e4_requested
+        else "complete" if e4_complete
+        else "incomplete"
+    )
 
     normalized, error = load_json(args.reports_dir / "normalized_findings.json")
     if error:
@@ -130,11 +165,26 @@ def main() -> int:
     if not isinstance(timing, dict):
         timing = None
         issues.append("traceable timing summary missing")
-    fixture_id = os.environ.get("FIXTURE_ID", "baseline")
     if timing and timing.get("fixture_id", "baseline") != fixture_id:
         issues.append(
             f"timing fixture {timing.get('fixture_id')} differs from scan fixture {fixture_id}"
         )
+    cache_mode = os.environ.get("CACHE_MODE", "cold")
+    benchmark_role = os.environ.get("BENCHMARK_ROLE", "measurement")
+    execution_mode = os.environ.get("SCAN_EXECUTION_MODE", "parallel")
+    if timing:
+        for key, expected in (
+            ("cache_mode", cache_mode),
+            ("benchmark_role", benchmark_role),
+            ("scan_execution_mode", execution_mode),
+            ("commit", os.environ.get("GITHUB_SHA", "")),
+            ("run_id", os.environ.get("GITHUB_RUN_ID", "")),
+            ("run_attempt", os.environ.get("GITHUB_RUN_ATTEMPT", "")),
+        ):
+            if str(timing.get(key, "")) != str(expected):
+                issues.append(f"timing {key} differs from workflow setting")
+        if not timing.get("scan_stage_started_at") or not timing.get("scan_stage_ended_at"):
+            issues.append("timing scan-stage start/end timestamps missing")
 
     trivy_runtime = {}
     runtime_paths = sorted((args.reports_dir / "experiment").glob("trivy-runtime-*.json"))
@@ -177,10 +227,16 @@ def main() -> int:
         run_url += f"/attempts/{attempt}"
 
     record = {
-        "schema_version": 2,
+        "schema_version": 3,
         "evidence_status": "complete" if not issues and run_url else "partial",
         "sample_type": "repository-baseline" if fixture_id == "baseline" else "patch-fixture",
         "fixture_id": fixture_id,
+        "cache_mode": cache_mode,
+        "benchmark_role": benchmark_role,
+        "scan_execution_mode": execution_mode,
+        "e4_evidence_status": e4_evidence_status,
+        "e4_requested": run_e4_requested,
+        "e4_raw_reports": e4_report_states,
         "run_id": run_id,
         "run_attempt": attempt,
         "run_url": run_url,
@@ -188,6 +244,8 @@ def main() -> int:
         "ref": os.environ.get("GITHUB_REF", ""),
         "event": os.environ.get("GITHUB_EVENT_NAME", ""),
         "recorded_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "scan_stage_started_at": (timing or {}).get("scan_stage_started_at", ""),
+        "scan_stage_ended_at": (timing or {}).get("scan_stage_ended_at", ""),
         "policy_configured": os.environ.get("CONTEST_POLICY", ""),
         "tool_versions_configured": {
             tool: os.environ.get(variable, "")

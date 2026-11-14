@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Sinh báo cáo DOCX và slide PPTX nộp bài từ số liệu thực nghiệm trong repo.
+"""Sinh báo cáo DOCX từ số liệu thực nghiệm trong repo; PPTX là tùy chọn.
 
 Số liệu đọc từ:
     tests/results/metrics/e1_g{0,1,2}_metrics.json
@@ -13,8 +13,10 @@ Số liệu đọc từ:
     PPTX/slide_thuyet_trinh_DevSecOps.pptx
 
 Chạy: python Extra/build_report_docs.py
+Chạy cả PPTX: python Extra/build_report_docs.py --with-pptx
 """
 
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -57,6 +59,7 @@ except SystemExit:
     ci_baseline = None
 
 ci_run = (ci_baseline or {}).get("run", {})
+latest_known_run = (ci_baseline or {}).get("latest_known_run_not_analyzed", {})
 CI_RUN_URL = ci_run.get("url", "")
 CI_RUN_LABEL = (
     f"run #{ci_run['run_number']} ({ci_run['conclusion']}, commit "
@@ -77,13 +80,21 @@ CI_RUN_COMPLETE_GREEN = (
     and CI_REQUIRED_JOBS.issubset(CI_SUCCESSFUL_JOBS)
 )
 CI_RUN_STATUS = (
-    f"Baseline {CI_RUN_LABEL} có các job test, scan, gate, release và deploy-smoke thành công."
-    if CI_RUN_COMPLETE_GREEN
-    else f"Metadata CI hiện ghi nhận {CI_RUN_LABEL}; chưa xác minh đủ trạng thái tất cả job."
+    f"Run mới nhất đã biết là #{latest_known_run.get('run_number')} trên commit "
+    f"{str(latest_known_run.get('head_sha', ''))[:12]} và workflow thành công; "
+    "artifact chưa được phân tích. Các số gate bên dưới lấy từ run đã phân tích "
+    f"{CI_RUN_LABEL}."
+    if latest_known_run.get("run_number") and latest_known_run.get("conclusion") == "success"
+    else (
+        f"Baseline {CI_RUN_LABEL} có các job test, scan, gate, release và deploy-smoke thành công."
+        if CI_RUN_COMPLETE_GREEN
+        else f"Metadata CI hiện ghi nhận {CI_RUN_LABEL}; chưa xác minh đủ trạng thái tất cả job."
+    )
 )
 gate_result = (ci_baseline or {}).get("gate_result_from_job_log", {})
 CI_GATE_SUMMARY = (
-    f"Gate {gate_result['decision']}: {gate_result['normalized_findings']} findings, "
+    f"Gate đã phân tích của {CI_RUN_LABEL}: {gate_result['decision']}: "
+    f"{gate_result['normalized_findings']} findings, "
     f"{gate_result['blockers']} blockers, {gate_result['warnings']} warnings "
     f"({gate_result['warning_severity_counts']['HIGH']} HIGH, "
     f"{gate_result['warning_severity_counts']['MEDIUM']} MEDIUM)."
@@ -104,7 +115,24 @@ CI_ARTIFACT_NAMES = {
     item.get("name") for item in (ci_baseline or {}).get("artifacts", [])
 }
 if e4.get("live") and "error" not in e4["live"]:
-    E4_LIVE_STATUS = "Metrics đã có số liệu Trivy và SBOM live trước/sau."
+    live = e4["live"]
+    before = live.get("before", {})
+    after = live.get("after", {})
+    comparability = live.get("comparability", {})
+    image_before = before.get("image", {})
+    image_after = after.get("image", {})
+    E4_LIVE_STATUS = (
+        f"Artifact E4 của run {live.get('provenance', {}).get('ci_run_id', live.get('run_id', '?'))} "
+        f"ghi nhận {before.get('vulnerabilities_total', sum((before.get('vulnerabilities') or {}).values()))}→"
+        f"{after.get('vulnerabilities_total', sum((after.get('vulnerabilities') or {}).values()))} lỗ hổng và "
+        f"{before.get('sbom_packages', '?')}→{after.get('sbom_packages', '?')} thành phần SBOM. "
+        f"Trạng thái so sánh: {live.get('evidence_status', e4.get('evidence_status', 'limited'))}; "
+        f"Python {image_before.get('python_version', '?')}→{image_after.get('python_version', '?')}; "
+        f"per-scan DB snapshot được xác minh: "
+        f"{comparability.get('per_scan_trivy_snapshot_verified', comparability.get('shared_trivy_database_snapshot', False))}; "
+        f"được quy kết riêng cho remediation: "
+        f"{comparability.get('causal_attribution_allowed', e4.get('causal_attribution_allowed', False))}."
+    )
 elif CI_RUN_COMPLETE_GREEN and {"report-image", "sbom"}.issubset(CI_ARTIFACT_NAMES):
     e4_log = (ci_baseline or {}).get("e4_log_summary", {})
     if e4_log.get("trivy_vulnerability_record_delta_after_minus_before") is not None:
@@ -642,8 +670,16 @@ def build_pptx(out_path: Path):
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Sinh báo cáo DOCX; chỉ cập nhật PPTX khi được yêu cầu.")
+    parser.add_argument(
+        "--with-pptx",
+        action="store_true",
+        help="Cập nhật cả slide PPTX (mặc định chỉ sinh DOCX).",
+    )
+    args = parser.parse_args()
     build_docx(REPO / "DOCX" / "bao_cao_do_an_DevSecOps.docx")
-    build_pptx(REPO / "PPTX" / "slide_thuyet_trinh_DevSecOps.pptx")
+    if args.with_pptx:
+        build_pptx(REPO / "PPTX" / "slide_thuyet_trinh_DevSecOps.pptx")
     return 0
 
 

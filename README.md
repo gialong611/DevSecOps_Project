@@ -45,7 +45,7 @@ Các thực nghiệm:
 - **E3:** Đánh giá thời gian pipeline
 - **E4:** Đánh giá ảnh hưởng của việc khắc phục đến image và SBOM
 
-**Trạng thái bằng chứng:** Run baseline #13 trên commit
+**Số liệu đã phân tích của run lịch sử #13:** Run baseline trên commit
 `cbcef8e32d5b007229be5e424409e8ee00fe278e` đã thành công, gồm test, gate,
 release, xác minh chữ ký và deploy smoke; đã lưu artifact `report-scan`,
 `report-iac`, `report-image`, `report-gate` và `sbom` ([GitHub Actions run](https://github.com/gialong611/DevSecOps_Project/actions/runs/41288998886)).
@@ -60,8 +60,9 @@ cần một CI run mới để ghi nhận tỷ lệ liên kết thực tế.
 Raw artifact E4 cho thấy Trivy giảm từ 4.721 xuống 188 bản ghi lỗ hổng
 (-4.533): CRITICAL 21→0, HIGH 531→52, MEDIUM 2.037→71, LOW 2.030→64,
 UNKNOWN 102→1. SBOM giảm từ 22.921 xuống 2.860 thành phần (-20.061). Hai lần
-quét dùng Trivy 0.76.1 và cùng DB snapshot `2026-11-01 07:08:40 UTC`; image
-local IDs đã trích được nhưng `RepoDigests` rỗng. Lượt E4 này dùng Python 3.12.15
+quét dùng Trivy 0.76.1 và runtime ghi một DB snapshot ở cấp image job
+`2026-11-01 07:08:40 UTC`; chưa có metadata riêng trước/sau từng lần quét.
+Image local IDs đã trích được nhưng `RepoDigests` rỗng. Lượt E4 này dùng Python 3.12.15
 ở image trước và 3.12.16 ở image sau, nên delta là quan sát có thật nhưng chưa
 thể quy riêng cho các kiểm soát Dockerfile. Dockerfile mẫu đã được đồng bộ
 phiên bản Python cho lượt kế tiếp. Các cảnh báo MEDIUM được truy về package:
@@ -82,6 +83,33 @@ thô theo fixture. Bản đồ cảnh báo và metric E4
 đã được lưu tại `Code/DevSecOps/tests/results/metrics/`. Quy trình
 thu thập và tổng hợp: `Code/DevSecOps/tests/README.md`.
 Xem bảng tự đánh giá và việc còn thiếu tại `PROJECT_COMPLETION.md`.
+
+### Trạng thái bằng chứng hiện tại
+
+- Run GitHub Actions mới nhất đã biết là [run #14](https://github.com/gialong611/DevSecOps_Project/actions/runs/41324476069), commit
+  `3eed4d8dc9035af4498d8805c8f48876f04ea656`; các job CI chính thành công.
+  Metadata artifact đã được kiểm tra; nội dung ZIP chưa trích được vào workspace,
+  vì vậy chưa công bố số liệu mới từ lượt này.
+- Các thư mục `D:\Downloads\report-* (1)` và `D:\Downloads\sbom` hiện có là
+  run #13, không phải #14: observation ghi run ID `41288998886`, commit
+  `cbcef8e32d5b007229be5e424409e8ee00fe278e` và schema v2.
+- Artifact `report-scan` của run #14 hết hạn `2026-11-15 16:05:51 UTC`; tải
+  trước hạn để giữ được raw report.
+- Các số 275 findings, 30 warnings, delta image/SBOM và một lượt timing ở trên
+  thuộc run #13; chúng là dữ liệu lịch sử, không phải kết quả đo hiện tại hay
+  nhiều lần lặp.
+- E1/E2 từ `decisions.csv`, E3 từ `runs.csv` và E4 T0 KEV/EPSS vẫn mang nhãn
+  exploratory/simulation. Chúng không được dùng để khẳng định scanner recall,
+  false-positive rate hoặc hiệu quả cache ngoài dữ liệu quan sát CI.
+- Workflow và script đang được hoàn thiện để thu thập từng fixture D01–D28,
+  C01–C10, N01–N08, đo E3 cold/warm lặp lại, và kiểm tra E4 bằng cùng DB
+  snapshot. Thay đổi local chưa được xác nhận bởi GitHub Actions.
+- Sau khi có artifact mới và số liệu được kiểm tra, cập nhật DOCX. PPTX được giữ
+  nguyên theo phạm vi đã thống nhất.
+
+Để thu thập dữ liệu sau khi workflow/code mới được đẩy lên GitHub, xem hướng dẫn
+ở `Code/DevSecOps/tests/README.md`. GitHub Actions không thể được dispatch từ
+môi trường làm việc hiện tại.
 
 ## Kiến trúc pipeline
 
@@ -131,8 +159,8 @@ DevSecOps_Project/
 
 ## Tài liệu
 
-- Báo cáo: `DOCX/bao_cao_do_an_DevSecOps.docx` (sinh lại bằng `python Extra/build_report_docs.py`)
-- Slide: `PPTX/slide_thuyet_trinh_DevSecOps.pptx` (cùng script trên)
+- Báo cáo: `DOCX/bao_cao_do_an_DevSecOps.docx` (sinh lại bằng `python Extra/build_report_docs.py`; mặc định chỉ cập nhật DOCX)
+- Slide: `PPTX/slide_thuyet_trinh_DevSecOps.pptx` (chỉ sinh lại khi gọi script với `--with-pptx`)
 - Phiên bản công cụ và SHA action: `Extra/TOOL_VERSIONS.md`
 - Tài liệu chính sách gate: `Code/DevSecOps/policy/README.md`
 - Tài liệu bộ đáp án và ánh xạ CWE/CVE: `Code/DevSecOps/ground_truth/README.md`
@@ -147,7 +175,7 @@ powershell -ExecutionPolicy Bypass -File Code/DevSecOps/tests/run_policy_tests.p
 conftest verify -p Code/DevSecOps/rules/conftest
 
 # Unit test ứng dụng (chạy cùng lệnh trong CI)
-python -m pytest -v Code/DevSecOps/src/test
+python -m pytest -v Code/DevSecOps/src/test Code/DevSecOps/tests
 
 # Thí nghiệm E1, E2, E3, E4
 python Code/DevSecOps/tests/e1_detection_effectiveness.py --policy g0

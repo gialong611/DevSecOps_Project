@@ -25,7 +25,6 @@ from e3_pipeline_duration import (
     percentile,
     compute_duration_stats,
     load_runs_data,
-    PIPELINE_PARALYSIS_THRESHOLD_SECONDS,
 )
 
 
@@ -338,8 +337,8 @@ def test_e3_compute_duration_stats():
     assert stats["paralysis_exceeded"] is False
 
 
-def test_e3_real_runs_has_38_records():
-    """Tập dữ liệu runs.csv thực tế phải có đủ 38 lần chạy."""
+def test_e3_exploratory_csv_has_38_rows():
+    """The committed exploratory CSV has 38 rows; this is not live CI evidence."""
     runs_path = Path(__file__).parents[1] / "tests" / "results" / "raw" / "runs.csv"
     if not runs_path.exists():
         pytest.skip("runs.csv chưa có trong repo")
@@ -347,15 +346,4 @@ def test_e3_real_runs_has_38_records():
     assert len(overall) == 38, f"Mong đợi 38 lần chạy, thực tế {len(overall)}"
     assert len(by_type["defect"]) == 28
     assert len(by_type["clean"]) == 10
-
-
-def test_e3_real_runs_not_exceed_paralysis():
-    """Thời gian chạy pipeline thực tế không được vượt quá ngưỡng tê liệt (600 giây)."""
-    runs_path = Path(__file__).parents[1] / "tests" / "results" / "raw" / "runs.csv"
-    if not runs_path.exists():
-        pytest.skip("runs.csv chưa có trong repo")
-    overall, _ = load_runs_data(runs_path)
-    stats = compute_duration_stats(overall)
-    assert stats["paralysis_exceeded"] is False
-    assert stats["max"] < PIPELINE_PARALYSIS_THRESHOLD_SECONDS
 

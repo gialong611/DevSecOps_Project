@@ -1,9 +1,14 @@
 {
   "experiment": "E2",
   "question": "RQ3",
+  "evidence_status": "exploratory-policy-replay",
+  "empirical_claim_allowed": false,
+  "decision_source": "decisions.csv",
   "policies": [
     {
       "policy": "g0",
+      "evidence_status": "exploratory-policy-replay",
+      "empirical_scanner_metric": false,
       "total_defects": 28,
       "total_cleans": 10,
       "TP": 0,
@@ -51,6 +56,8 @@
     },
     {
       "policy": "g1",
+      "evidence_status": "exploratory-policy-replay",
+      "empirical_scanner_metric": false,
       "total_defects": 28,
       "total_cleans": 10,
       "TP": 28,
@@ -98,6 +105,8 @@
     },
     {
       "policy": "g2",
+      "evidence_status": "exploratory-policy-replay",
+      "empirical_scanner_metric": false,
       "total_defects": 28,
       "total_cleans": 10,
       "TP": 20,
