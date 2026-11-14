@@ -1,8 +1,8 @@
 --- a/Code/DevSecOps/src/requirements.txt
 +++ b/Code/DevSecOps/src/requirements.txt
-@@ -1,6 +1,6 @@
--fastapi==0.115.6
-+fastapi==0.115.7
+@@ -1,7 +1,7 @@
+ fastapi==0.162.7
+ starlette==1.10.0
  uvicorn[standard]==0.34.0
 -pydantic==2.10.5
 +pydantic==2.11.0

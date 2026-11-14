@@ -7,7 +7,9 @@ The script pins every dispatch to one resolved commit and resumes safely by run 
 
 import argparse
 import csv
+from contextlib import contextmanager
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -212,8 +214,13 @@ def dispatch_case(repo, ref, expected_sha, output_root, fixture_id, cache_mode,
         "run", "download", str(run_id), "--repo", repo,
         "--name", artifact_name, "--dir", str(artifact_dir),
     ], check=False)
-    downloaded = download.returncode == 0
-    observation, observation_result = extract_observation(artifact_dir) if downloaded else (None, download.stderr.strip())
+    # `gh run download` can return non-zero after extracting the complete
+    # observation bundle when the archive contains repeated report paths.
+    # Treat the artifact as usable when the required observation is present;
+    # retain the CLI warning so the extraction quirk remains visible.
+    observation, observation_result = extract_observation(artifact_dir)
+    downloaded = observation is not None
+    download_warning = (download.stderr.strip() or download.stdout.strip()) if download.returncode else None
     timing = job_timing(details)
 
     g2 = next(
@@ -252,6 +259,7 @@ def dispatch_case(repo, ref, expected_sha, output_root, fixture_id, cache_mode,
         "artifact_name": artifact_name,
         "artifact_path": str(artifact_dir),
         "artifact_downloaded": downloaded,
+        "artifact_download_warning": download_warning,
         "observation_status": (observation or {}).get("evidence_status"),
         "observation_path": observation_result if observation else None,
         "observation_error": None if observation else observation_result,
@@ -379,6 +387,47 @@ def run_matrix(args):
     return 0
 
 
+@contextmanager
+def study_lock(path):
+    """Prevent two controllers from dispatching duplicate work to one study."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    handle = path.open("a+b")
+    locked = False
+    try:
+        if os.name == "nt":
+            import msvcrt
+
+            handle.seek(0)
+            handle.write(b"\0")
+            handle.flush()
+            handle.seek(0)
+            msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        locked = True
+        yield
+    except OSError as error:
+        if not locked:
+            raise RuntimeError(
+                f"A study controller already holds {path}; stop it or use another --out-dir."
+            ) from error
+        raise
+    finally:
+        if locked:
+            if os.name == "nt":
+                import msvcrt
+
+                handle.seek(0)
+                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                import fcntl
+
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        handle.close()
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--ref", default="main", help="GitHub branch or tag to freeze for the study")
@@ -393,8 +442,11 @@ def main():
     args = parser.parse_args()
     if args.e3_cold_repeats < 0 or args.e3_warm_repeats < 0:
         parser.error("E3 repeat counts must not be negative")
+    output_root = args.out_dir.resolve()
+    lock_path = output_root.with_name(f".{output_root.name}.lock")
     try:
-        return run_matrix(args)
+        with study_lock(lock_path):
+            return run_matrix(args)
     except (RuntimeError, TimeoutError, OSError, KeyError, ValueError) as error:
         print(f"ERROR: {error}", file=sys.stderr)
         return 1
