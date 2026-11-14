@@ -32,6 +32,7 @@ Pipeline chạy quá 10 phút.
 
 - Artifact baseline mới nhất đã đọc là [GitHub Actions run ID 43606451482](https://github.com/gialong611/DevSecOps_Project/actions/runs/43606451482/attempts/1), commit `ff6f7c437655a59c1ee96cce89d47a5fed253ef3`, schema observation v3, fixture `baseline`, event `push`. Bản trích mới nằm ở `tests/results/metrics/ci_baseline_latest.json`; run trước được lưu tại `ci_baseline_run_43599931890.json`, dữ liệu cũ hơn tại `ci_baseline_legacy_history.json`.
 - Artifact ghi gate G2 `WARN`, pass, 292 finding chuẩn hóa, 0 blocker, 20 warning. Có 18 warning HIGH và 2 MEDIUM; 20/20 liên kết được tới 101 finding nguồn. Cảnh báo IaC tổng hợp liên kết 40 finding thuộc 17 control ID.
+- GitHub run #19 hoàn tất `success`; bảy job Python tests, security-scan, IaC, image, gate, release và deploy-smoke đều thành công. Branch protection chưa xác minh; GitHub API không cấp quyền đọc endpoint này trong phiên hiện tại.
 - Trivy config có 11 misconfiguration (2 HIGH, 6 MEDIUM, 3 LOW); Checkov có 77 finding. `CKV_AWS_382` và `AWS-0104` không còn xuất hiện.
 - E3 có một observation: security-scan 29s, IaC 41s, image 114s; đường găng scan song song 114s, tổng runner 3.067 phút. Đây chỉ là một cold run, không đủ so sánh cache hoặc suy rộng ổn định.
 - E4 được bỏ qua; SBOM phát hành ghi GHCR digest `sha256:ca8c642b7949c97182e645effee49384413c4d9fdc31b511d3e650d1997de68a`, trong khi báo cáo image scan gắn tag cục bộ. Hai SBOM trùng tập PURL nhưng chưa truy vết scan tới digest phát hành; không coi đây là so sánh trước/sau.

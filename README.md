@@ -87,6 +87,7 @@ Xem bảng tự đánh giá và việc còn thiếu tại `PROJECT_COMPLETION.md
 
 - Artifact mới nhất đã đọc là [GitHub Actions run ID 43606451482](https://github.com/gialong611/DevSecOps_Project/actions/runs/43606451482/attempts/1), commit `ff6f7c437655a59c1ee96cce89d47a5fed253ef3`, `push` trên `main`, fixture `baseline`; bản ghi chi tiết ở `Code/DevSecOps/tests/results/metrics/ci_baseline_latest.json`.
 - Gate theo policy trong artifact trả `WARN` nhưng pass: **292 finding chuẩn hóa, 0 blocker, 20 warning**. Có 18 warning HIGH và 2 MEDIUM; 20/20 warning liên kết tới **101 finding nguồn**.
+- GitHub ghi nhận run #19 `success`; cả 7 job đều pass, gồm Python tests, gate, release và deploy-smoke. Đây là run `push`, chưa chứng minh PR bị block/pass hoặc branch protection bắt buộc check.
 - Raw IaC có **77 Checkov finding** và **11 Trivy misconfiguration** (2 HIGH, 6 MEDIUM, 3 LOW). `CKV_AWS_382` và `AWS-0104` đều bằng 0 sau khi siết egress. Cảnh báo IaC tổng hợp nối 40 finding thuộc 17 control ID.
 - E3 hiện chỉ có một lượt baseline cold: security-scan 29 giây, IaC 41 giây, image 114 giây; đường găng scan song song 114 giây, runner 3,067 phút. E4 không được yêu cầu; run push không chứng minh PR block/pass.
 - Hai SBOM có cùng 2.856 component theo PURL. SBOM phát hành trỏ tới GHCR digest `sha256:ca8c642b7949c97182e645effee49384413c4d9fdc31b511d3e650d1997de68a`, còn báo cáo image scan tham chiếu tag cục bộ `devsecops-app:scan`; chưa đủ bằng chứng nối báo cáo scan với digest phát hành.

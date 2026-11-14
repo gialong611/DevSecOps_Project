@@ -7,9 +7,10 @@ chưa chạy; không dùng dữ liệu thăm dò để tuyên bố recall hoặc
 
 - Artifact baseline mới nhất đã phân tích là [GitHub Actions run ID 43606451482](https://github.com/gialong611/DevSecOps_Project/actions/runs/43606451482/attempts/1), commit `ff6f7c437655a59c1ee96cce89d47a5fed253ef3`, event `push`. Gate `WARN` nhưng pass với 0 blocker và 20 warning trên 292 finding. Số liệu được lưu tại `Code/DevSecOps/tests/results/metrics/ci_baseline_latest.json`.
 - Artifact xác nhận 18 cảnh báo HIGH và 2 MEDIUM; 20/20 warning liên kết tới finding nguồn (101 finding được liên kết). Trong đó cảnh báo IaC tổng hợp liên kết 40 finding từ 17 control ID.
+- GitHub xác nhận run #19 hoàn tất `success`; cả 7 job đều pass, gồm Python tests, gate, release và deploy-smoke. Đây là bằng chứng pipeline push chạy xuyên suốt, không thay cho PR block/pass.
 - Run 43606451482 có Checkov JSON hợp lệ, 77 finding Checkov, 11 Trivy IaC misconfiguration; không còn `CKV_AWS_382`/`AWS-0104`. Cảnh báo IaC mới đã được xác nhận trên CI.
 - CI ghi thời gian scan security 29s, IaC 41s, image 114s; đường găng song song là 114s và runner-minutes là 3.067. Đây là một lượt đơn, không phải kết luận E3.
-- Run là baseline cold; E4 không được yêu cầu. Chưa có bằng chứng PR block/pass hoặc branch protection.
+- Run là baseline cold; E4 không được yêu cầu. Chưa có bằng chứng PR block/pass hoặc branch protection; GitHub API từ kết nối hiện tại từ chối đọc branch protection với HTTP 403.
 - `decisions.csv` và `runs.csv` là dữ liệu phát lại/thăm dò. Chúng không chứng minh scanner phát hiện lỗi hay đo được thời gian CI thật.
 - Run 43606451482 xác nhận parser Trivy `FAIL`/`FAILED`, sửa egress, Checkov JSON array, `conftest verify`, và cảnh báo IaC/K8s tổng hợp có correlation tới finding nguồn.
 - Các thay đổi hiện tại thêm thu thập ma trận D/C/N, so sánh pip cache cold/warm, kiểm tra E4 nghiêm ngặt hơn và đưa các script phân tích vào pytest. Chưa có dữ liệu live đủ cho các thí nghiệm D/C/N.

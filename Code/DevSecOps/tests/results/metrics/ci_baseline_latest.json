@@ -372,5 +372,48 @@
     "D:\\Downloads\\report-image\\grype-image.json",
     "D:\\Downloads\\report-image\\sbom.cdx.json",
     "D:\\Downloads\\sbom\\sbom.cdx.json"
-  ]
+  ],
+  "action_run": {
+    "run_number": 19,
+    "run_id": "43606451482",
+    "status": "completed",
+    "conclusion": "success",
+    "event": "push",
+    "url": "https://github.com/gialong611/DevSecOps_Project/actions/runs/43606451482",
+    "jobs": [
+      {
+        "name": "Run Python tests",
+        "conclusion": "success"
+      },
+      {
+        "name": "Security scans (collection mode)",
+        "conclusion": "success"
+      },
+      {
+        "name": "iac",
+        "conclusion": "success"
+      },
+      {
+        "name": "image",
+        "conclusion": "success"
+      },
+      {
+        "name": "gate (Conftest Rego)",
+        "conclusion": "success"
+      },
+      {
+        "name": "release",
+        "conclusion": "success"
+      },
+      {
+        "name": "deploy-smoke",
+        "conclusion": "success"
+      }
+    ]
+  },
+  "branch_protection": {
+    "status": "not_verified",
+    "read_attempt": "GitHub API returned 403 Resource not accessible by integration",
+    "pr_block_pass_evidence": "not_present"
+  }
 }
