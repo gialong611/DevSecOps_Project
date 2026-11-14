@@ -55,8 +55,9 @@ tiếp độ nhiễu PR nhưng cho thấy baseline vượt ngân sách cảnh b�
 được phân tích để lập danh sách package cần vá. Gate report/PR summary đã được cải tiến
 để nối cảnh báo CVE/GHSA về finding nguồn, package, phiên bản đang cài, phiên bản
 vá và vị trí; severity hiển thị theo policy thay vì gán mọi cảnh báo thành MEDIUM.
-Thay đổi này làm cảnh báo có thể triage được nhưng chưa làm giảm số cảnh báo;
-cần một CI run mới để ghi nhận tỷ lệ liên kết thực tế.
+Thay đổi này làm cảnh báo có thể triage được nhưng chưa làm giảm số cảnh báo ở
+run #13. Run ID 43599931890 hiện xác nhận 19/19 CVE warning liên kết được về
+finding nguồn; policy IaC mới hơn vẫn cần CI xác nhận.
 Raw artifact E4 cho thấy Trivy giảm từ 4.721 xuống 188 bản ghi lỗ hổng
 (-4.533): CRITICAL 21→0, HIGH 531→52, MEDIUM 2.037→71, LOW 2.030→64,
 UNKNOWN 102→1. SBOM giảm từ 22.921 xuống 2.860 thành phần (-20.061). Hai lần
@@ -67,17 +68,14 @@ Image local IDs đã trích được nhưng `RepoDigests` rỗng. Lượt E4 nà
 thể quy riêng cho các kiểm soát Dockerfile. Các cảnh báo MEDIUM được truy về package:
 5 Python, 5 pip, 2 pytest và 3 Starlette. Sau run #13, working tree nâng Python
 lên 3.13.18, pip lên 26.3, pytest lên 9.0.3, FastAPI lên 0.162.7 và Starlette
-lên 1.10.0; image runtime đã bỏ pip và nâng ngưỡng bảo mật APT/zlib. Bản image
-local mới nhất qua 64/64 pytest; Trivy không còn ba CVE gây BLOCK trong log mới
-nhất và không tìm thấy HIGH/CRITICAL có bản vá. Đây là xác nhận cục bộ, chưa phải
-kết quả CI; số warning của workflow chỉ được chốt sau một run mới. Checkov raw
-trong artifact là stream 3 JSON document: loader của dự án đọc được, còn
-`json.load` báo `Extra data` ở dòng 6354. Workflow local đã đổi để giữ
-`checkov.stream.json` và xuất `checkov.json` dạng array; chờ run
-mới xác nhận. Chưa đủ để kết luận recall, false-positive rate hoặc thời gian
-đại diện vì chưa có đủ fixture D/C/N. Một observation truy vết
-được ghi thời gian ba job scan là 28s (security-scan), 37s (IaC) và 171s
-(image); 171s là đường găng của giai đoạn
+lên 1.10.0; image runtime đã bỏ pip và nâng ngưỡng bảo mật APT/zlib. Sau đó,
+run ID 43599931890 xác nhận Trivy/Grype không thấy ba CVE từng gây BLOCK và
+không thấy HIGH/CRITICAL có bản vá trong image scan. Checkov raw trước đây là
+stream 3 JSON document khiến `json.load` báo `Extra data` ở dòng 6354; run
+43599931890 xác nhận pipeline đã xuất Checkov JSON hợp lệ và chuẩn hóa được 77
+finding. Chưa đủ để kết luận recall, false-positive rate hoặc thời gian đại diện
+vì chưa có đủ fixture D/C/N. Một observation cũ của run #13 ghi 28s
+(security-scan), 37s (IaC) và 171s (image); 171s là đường găng của giai đoạn
 scan song song trong một run, không phải tổng thời gian workflow. Các CSV/biểu
 đồ đang commit vẫn là dữ liệu thiết kế/thăm dò, không thay cho quan sát scanner
 thô theo fixture. Bản đồ cảnh báo và metric E4
@@ -87,23 +85,15 @@ Xem bảng tự đánh giá và việc còn thiếu tại `PROJECT_COMPLETION.md
 
 ### Trạng thái bằng chứng hiện tại
 
-- Artifact mới nhất đã đọc là [run #43572212518](https://github.com/gialong611/DevSecOps_Project/actions/runs/43572212518/attempts/1), commit `852196ca45ad7275cccd6cbdc6f05de2dc2a4a93`, `push` trên `main`, fixture `baseline`.
-- Gate của run này trả `WARN` nhưng pass: **296 finding chuẩn hóa, 0 blocker, 19 warning**. Có 17 cảnh báo HIGH chưa có bản vá và 2 MEDIUM có bản vá; 19/19 warning được liên kết tới finding nguồn. Đây không phải kết quả của log fail có 3 blocker đã gửi trước đó.
-- Run chỉ đo baseline cold một lần: security-scan 25 giây, IaC 52 giây, image 87 giây; đường găng scan song song 87 giây, tổng runner 2,733 phút. E4 không được yêu cầu; run là `push`, không chứng minh PR block/pass.
-- Artifact `report-iac` có 16 cấu hình Trivy trạng thái `FAIL` (3 CRITICAL, 2 HIGH, 6 MEDIUM, 5 LOW), nhưng normalizer cũ chỉ nhận trạng thái `FAILED`, nên các mục này bị bỏ khỏi gate. Working tree hiện đã nhận cả hai cách viết; Trivy quét IaC lại sau khi siết egress còn 11 mục và không còn `AWS-0104`. Cần CI mới để xác nhận gate sau sửa.
-- Hai SBOM đều có 2.856 thành phần giống nhau; SBOM phát hành ghi digest GHCR, còn SBOM của image scan gắn tag cục bộ. Nên nối báo cáo quét với digest phát hành trong lần cải thiện tiếp theo.
-- Các thư mục run #13 và #14 bên dưới là bằng chứng lịch sử; không dùng chúng thay cho run #435722 hoặc các lượt lặp thực nghiệm.
-- Các số 275 findings, 30 warnings, delta image/SBOM và một lượt timing ở trên
-  thuộc run #13; chúng là dữ liệu lịch sử, không phải kết quả đo hiện tại hay
-  nhiều lần lặp.
-- E1/E2 từ `decisions.csv`, E3 từ `runs.csv` và E4 T0 KEV/EPSS vẫn mang nhãn
-  exploratory/simulation. Chúng không được dùng để khẳng định scanner recall,
-  false-positive rate hoặc hiệu quả cache ngoài dữ liệu quan sát CI.
-- Workflow và script đang được hoàn thiện để thu thập từng fixture D01–D28,
-  C01–C10, N01–N08, đo E3 cold/warm lặp lại, và kiểm tra E4 bằng cùng DB
-  snapshot. Các thay đổi parser, policy và egress hiện tại chưa được xác nhận bởi GitHub Actions.
-- Sau khi có artifact mới và số liệu được kiểm tra, cập nhật DOCX. PPTX được giữ
-  nguyên theo phạm vi đã thống nhất.
+- Artifact mới nhất đã đọc là [GitHub Actions run ID 43599931890](https://github.com/gialong611/DevSecOps_Project/actions/runs/43599931890/attempts/1), commit `9ca131a678017e89d804033c3d6b75e0f2c0f366`, `push` trên `main`, fixture `baseline`; bản ghi chi tiết ở `Code/DevSecOps/tests/results/metrics/ci_baseline_latest.json`.
+- Gate theo policy trong artifact trả `WARN` nhưng pass: **292 finding chuẩn hóa, 0 blocker, 19 warning**. 17 warning HIGH chưa có bản vá và 2 MEDIUM có bản vá; 19/19 warning CVE liên kết được về finding nguồn.
+- Raw IaC có **77 Checkov finding** và **11 Trivy misconfiguration** (2 HIGH, 6 MEDIUM, 3 LOW). Ba rule `CKV_AWS_382`/`AWS-0104` không còn xuất hiện sau khi siết egress. Tuy vậy policy của artifact chưa đưa 2 HIGH và 6 MEDIUM Trivy IaC vào warning.
+- Một thay đổi sau artifact gom các control IaC/K8s được chọn thành một warning tổng hợp và cập nhật report bridge để nối control ID tới finding nguồn. Thiết kế dự kiến giữ baseline ở tối đa 20 warning; đây là thay đổi local, chưa có GitHub Actions xác nhận và không được cộng vào kết quả 19-warning đã đo.
+- E3 hiện chỉ có một lượt baseline cold: security-scan 30 giây, IaC 34 giây, image 117 giây; đường găng scan song song 117 giây, runner 3,017 phút. E4 không được yêu cầu; run push không chứng minh PR block/pass.
+- Hai SBOM có cùng 2.856 component. SBOM phát hành trỏ tới GHCR digest `sha256:655ac2d5f891848311013ed9b7e859f8bff78c21af1e2d567146f9df1eff04c9`, còn báo cáo image scan tham chiếu tag cục bộ `devsecops-app:scan`; chưa đủ bằng chứng nối báo cáo scan với digest phát hành.
+- E1/E2 từ `decisions.csv`, E3 từ `runs.csv` và E4 T0 KEV/EPSS vẫn mang nhãn thăm dò/mô phỏng. Chưa được dùng để khẳng định scanner recall, false-positive rate hoặc hiệu quả cache ngoài dữ liệu CI quan sát được.
+- Workflow và script đang thu thập fixture D01–D28, C01–C10, N01–N08; còn thiếu ma trận observation complete, 5 lượt cache cold + 5 warm cùng commit, E4 có snapshot khớp, và PR có bằng chứng block/pass cùng branch protection.
+- Cập nhật DOCX sau khi có số liệu thực nghiệm đủ điều kiện; PPTX giữ nguyên theo phạm vi đã thống nhất.
 
 Để thu thập dữ liệu sau khi workflow/code mới được đẩy lên GitHub, xem hướng dẫn
 ở `Code/DevSecOps/tests/README.md`. GitHub Actions không thể được dispatch từ

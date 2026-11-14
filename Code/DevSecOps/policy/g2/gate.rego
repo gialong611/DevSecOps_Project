@@ -22,6 +22,20 @@ iac_block_controls := {
 	"CKV_GHA_2", # script injection trong run
 }
 
+# Mức WARN có chủ đích cho các thiếu sót cần xem xét nhưng không đủ cơ sở
+# chặn phát hành ngay. Gom chúng thành một advisory để không tạo một warning
+# riêng cho mỗi engine/rule trùng lặp trong baseline.
+iac_warn_controls := {
+	"CKV_AWS_21", # S3 versioning (D20)
+	"CKV_AWS_129", "CKV_AWS_145", "CKV_AWS_161", "CKV_AWS_226", "CKV_AWS_293",
+	"CKV_K8S_11", "CKV_K8S_43", # resource limits / image pinning (D22-D23)
+	"CKV_K8S_35", # tránh đưa secret vào biến môi trường container
+	"CKV2_AWS_11", "CKV2_AWS_12", "CKV2_AWS_30",
+	"AWS-0132", # S3 CMK; AWS-managed encryption vẫn đang bật
+	"AWS-0178", "AWS-0077", "AWS-0176", "AWS-0177", "AWS-0090",
+	"KSV-0125", # registry tin cậy cho image Kubernetes
+}
+
 sast_block_severity := {"CRITICAL", "HIGH"}
 
 severity_cap_days := {"CRITICAL": 7, "HIGH": 30, "MEDIUM": 90, "LOW": 90, "INFO": 90}
@@ -152,6 +166,18 @@ warn contains msg if {
 	f.epss < 0.10
 	not excused(f)
 	msg := sprintf("WARN EPSS trung bình (%.2f): %s", [f.epss, f.rule_id])
+}
+
+# ---- IaC/K8s baseline findings cần review; giữ tối đa một advisory tổng hợp ----
+warn contains msg if {
+	controls := {f.rule_id |
+		some f in input.findings
+		f.rule_id in iac_warn_controls
+		not excused(f)
+	}
+	count(controls) > 0
+	sorted_controls := sort([rule_id | some rule_id in controls])
+	msg := sprintf("WARN IaC controls require review: %s", [concat(", ", sorted_controls)])
 }
 
 warn contains msg if {

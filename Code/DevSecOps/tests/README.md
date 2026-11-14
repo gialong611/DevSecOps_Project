@@ -30,19 +30,13 @@ Pipeline chạy quá 10 phút.
 
 ## Mục 3. Trạng thái nguồn dữ liệu đang commit
 
-- Run GitHub Actions mới nhất đã biết là [run #14](https://github.com/gialong611/DevSecOps_Project/actions/runs/41324476069), commit
-  `3eed4d8dc9035af4498d8805c8f48876f04ea656`; các job CI chính thành công.
-  Chỉ metadata artifact được lấy từ GitHub; nội dung ZIP chưa được trích vào
-  workspace để phân tích nên chưa nhập số liệu mới vào kết quả.
-- Các thư mục artifact hiện có trên máy (`D:\Downloads\report-* (1)` và
-  `D:\Downloads\sbom`) là run #13: `observation.json` ghi run ID `41288998886`,
-  commit `cbcef8e32d5b007229be5e424409e8ee00fe278e` và schema v2. Chúng xác
-  nhận lại số liệu run #13, không phải #14.
-- Artifact `report-scan` của run #14 hết hạn `2026-11-15 16:05:51 UTC`; tải
-  artifact này trước hạn. Artifact #14 còn lại hết hạn `2027-01-30`.
-- Số liệu phân tích cũ thuộc [run #13](https://github.com/gialong611/DevSecOps_Project/actions/runs/41288998886): gate có 275 findings, 0 blockers, 30 warnings; E3 có một quan sát cho 3 job scan; E4 có Python khác minor patch version và không có registry digest. Đây là dữ liệu lịch sử/thăm dò, không gộp thành nhiều lần lặp và không dùng làm kết quả nhân quả.
-- `findings.csv`, `decisions.csv` và `runs.csv` là dữ liệu thiết kế/thăm dò. E1/E2 cũ là policy replay; E3 cũ không có URL run. Các tệp này không chứng minh scanner thực sự phát hiện lỗi.
-- Run #14 có `report-scan`, `report-gate`, `report-iac`, `report-image` và `sbom`, nhưng chỉ metadata được lấy; chưa suy ra finding count từ trạng thái xanh của workflow.
+- Artifact baseline mới nhất đã đọc là [GitHub Actions run ID 43599931890](https://github.com/gialong611/DevSecOps_Project/actions/runs/43599931890/attempts/1), commit `9ca131a678017e89d804033c3d6b75e0f2c0f366`, schema observation v3, fixture `baseline`, event `push`. Bản trích số liệu tái lập nằm ở `tests/results/metrics/ci_baseline_latest.json`; dữ liệu lưu trữ cũ nằm ở `ci_baseline_legacy_history.json`.
+- Artifact ghi gate G2 `WARN`, pass, 292 finding chuẩn hóa, 0 blocker, 19 warning. Trivy config có 11 misconfiguration (2 HIGH, 6 MEDIUM, 3 LOW); Checkov có 77 finding. Gate artifact liên kết 19/19 CVE warning với finding nguồn, nhưng policy trong run chưa cảnh báo các finding IaC này.
+- E3 có một observation: security-scan 30s, IaC 34s, image 117s; đường găng scan song song 117s, tổng runner 3.017 phút. Đây chỉ là một cold run, không đủ so sánh cache hoặc suy rộng ổn định.
+- E4 được bỏ qua; SBOM phát hành ghi GHCR digest `sha256:655ac2d5f891848311013ed9b7e859f8bff78c21af1e2d567146f9df1eff04c9`, trong khi báo cáo image scan gắn tag cục bộ. Không coi đây là so sánh trước/sau.
+- Policy G2 sau artifact gom các IaC/K8s control được chọn thành một warning có danh sách ID; report bridge cũng được cập nhật để nối ID về finding nguồn. Kết quả policy mới cần một CI run khác để đo.
+- Các số liệu run #13/#14 nêu ở hồ sơ cũ là lịch sử. `findings.csv`, `decisions.csv` và `runs.csv` vẫn là dữ liệu thiết kế/thăm dò; chúng không chứng minh scanner đã phát hiện lỗi theo từng fixture.
+- D/C/N live matrix, E3 đủ 5 cold + 5 warm, PR block/pass và branch protection vẫn chưa có bằng chứng hoàn chỉnh.
 - E4 T0 KEV/EPSS là mô phỏng. Chỉ được gọi là live khi có hai báo cáo Trivy, hai SBOM Syft, tool version, Python/OS/architecture và snapshot vulnerability DB xác nhận giống nhau; nếu không, báo `limited`/`incomplete` và không quy kết delta.
 - Observation schema tại `schemas/scan-observation.schema.json` ghi run URL, commit, phiên bản tool, timing, cache profile, raw report SHA-256, quyết định G0/G1/G2 và trạng thái E4 riêng. Observation E1–E3 không bị đánh `partial` chỉ vì E4 được chủ động bỏ qua.
 
