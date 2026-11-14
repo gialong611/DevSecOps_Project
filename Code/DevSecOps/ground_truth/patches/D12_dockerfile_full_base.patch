@@ -3,7 +3,7 @@
 @@ -1,5 +1,5 @@
  # Build context: Code/DevSecOps. Base ghim theo digest, cập nhật bằng digest thật.
 -FROM python:3.13.18-slim-trixie@sha256:76baad6037690d6e8c4397fbcaef17bca6f19eecef822b708fe8fa3417d30bb5 AS builder
-+FROM python:3.13.18-slim-trixie AS builder
++FROM python:latest AS builder
  
  WORKDIR /build
  COPY src/requirements.txt .
@@ -12,7 +12,7 @@
      && /opt/venv/bin/pip install --no-cache-dir -r requirements.txt
  
 -FROM python:3.13.18-slim-trixie@sha256:76baad6037690d6e8c4397fbcaef17bca6f19eecef822b708fe8fa3417d30bb5 AS runtime
-+FROM python:3.13.18-slim-trixie AS runtime
++FROM python:latest AS runtime
  
  # Patch CVE-2026-109518 (APT) and CVE-2026-76844/CVE-2026-85091 (zlib)
  # in the pinned Debian base. Use HTTPS and disable retries while bootstrapping

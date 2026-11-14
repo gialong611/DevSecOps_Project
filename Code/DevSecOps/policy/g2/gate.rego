@@ -13,13 +13,14 @@ iac_block_controls := {
 	"CKV_AWS_17", # RDS public
 	"CKV_AWS_16", # RDS chưa mã hóa
 	"CKV_AWS_382", "AWS-0104", # security group unrestricted egress (Checkov / Trivy)
-	"CKV_DOCKER_1", "CKV_DOCKER_3", "CKV_DOCKER_4", "CKV_DOCKER_7", # base image/root/ADD/sshd
+	"CKV_DOCKER_1", "CKV_DOCKER_3", "CKV_DOCKER_4", "CKV_DOCKER_7", # SSH/latest tag/non-root/remote ADD
 	"CKV_K8S_16", # privileged
 	"CKV_K8S_14", # image không ghim digest
 	"KSV-0111", # ServiceAccount cluster-admin
 	"KSV-0109", # mật khẩu trong ConfigMap
 	"CKV2_GHA_1", # token write-all
 	"CKV_GHA_2", # script injection trong run
+	"DSEC_GHA_001", # action reference không ghim SHA 40 ký tự
 }
 
 # Mức WARN có chủ đích cho các thiếu sót cần xem xét nhưng không đủ cơ sở
@@ -34,6 +35,7 @@ iac_warn_controls := {
 	"AWS-0132", # S3 CMK; AWS-managed encryption vẫn đang bật
 	"AWS-0178", "AWS-0077", "AWS-0176", "AWS-0177", "AWS-0090",
 	"KSV-0125", # registry tin cậy cho image Kubernetes
+	"CKV_GHA_7", # workflow_dispatch inputs có chủ đích cho bộ thí nghiệm, cần giữ để dispatch D/C/N/E3
 }
 
 sast_block_severity := {"CRITICAL", "HIGH"}

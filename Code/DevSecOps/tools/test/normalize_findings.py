@@ -535,6 +535,41 @@ def parse_checkov(data):
     return findings
 
 
+def parse_conftest_workflow(data):
+    """Normalize failures from the dedicated GitHub Actions Rego scanner."""
+    if data is None:
+        return []
+    records = data.get("results", []) if isinstance(data, dict) else data
+    require_list(records, "Conftest workflow results")
+
+    findings = []
+    rule_pattern = re.compile(r"\bDSEC_GHA_[A-Z0-9_]+\b", re.IGNORECASE)
+    for record_index, record in enumerate(records):
+        if not isinstance(record, dict):
+            raise ValueError(f"Conftest workflow result at index {record_index} must be an object.")
+        failures = record.get("failures", []) or []
+        require_list(failures, "Conftest workflow failures")
+        for failure in failures:
+            if isinstance(failure, dict):
+                message = failure.get("msg") or failure.get("message") or ""
+            else:
+                message = str(failure or "")
+            match = rule_pattern.search(message)
+            rule_id = match.group(0).upper() if match else "DSEC_GHA_UNKNOWN"
+            findings.append(
+                make_finding(
+                    tool="conftest",
+                    rule_id=rule_id,
+                    category="workflow",
+                    severity="HIGH",
+                    title=rule_id,
+                    message=message,
+                    file=record.get("filename"),
+                )
+            )
+    return findings
+
+
 def parse_trivy_config(data):
     """Convert Trivy misconfiguration results (Results[].Misconfigurations)."""
     if data is None:
@@ -639,6 +674,7 @@ def parse_grype(data):
                 title=vuln.get("id") or "Image vulnerability",
                 message="; ".join(message_parts),
                 file=first_file or artifact.get("name"),
+                resource=artifact.get("name"),
                 cve=vuln.get("id"),
                 references=references,
                 package=artifact.get("name"),
@@ -702,6 +738,10 @@ def main():
     )
     parser.add_argument("--grype", help="Path to Grype JSON report")
     parser.add_argument(
+        "--conftest-workflow",
+        help="Path to Conftest GitHub Actions workflow JSON report",
+    )
+    parser.add_argument(
         "--output",
         default="reports/normalized_findings.json",
         help="Output JSON path",
@@ -726,6 +766,7 @@ def main():
         findings.extend(parse_checkov(load_checkov_json(args.checkov)))
         findings.extend(parse_trivy_config(load_json(args.trivy_config)))
         findings.extend(parse_grype(load_json(args.grype)))
+        findings.extend(parse_conftest_workflow(load_json(args.conftest_workflow)))
 
         # Validate before writing so invalid results do not replace the
         # last known-good output file.
@@ -747,7 +788,7 @@ def main():
             key = finding["tool"]
             counts[key] = counts.get(key, 0) + 1
 
-        for tool in ("semgrep", "gitleaks", "trivy", "checkov", "grype"):
+        for tool in ("semgrep", "gitleaks", "trivy", "checkov", "grype", "conftest"):
             print(f"  {tool}: {counts.get(tool, 0)}")
 
     except (

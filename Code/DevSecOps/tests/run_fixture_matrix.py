@@ -53,8 +53,17 @@ def repository_name():
 
 def resolve_commit(repo, ref):
     api_ref = quote(ref, safe="")
-    commit = gh_json(["api", f"repos/{repo}/commits/{api_ref}"])
-    return commit["sha"]
+    for attempt in range(5):
+        try:
+            commit = gh_json(["api", f"repos/{repo}/commits/{api_ref}"])
+            return commit["sha"]
+        except RuntimeError as error:
+            if attempt == 4:
+                raise
+            delay = min(5 * (attempt + 1), 20)
+            print(f"GitHub commit lookup failed temporarily: {error}; retrying in {delay}s", flush=True)
+            time.sleep(delay)
+    raise AssertionError("unreachable")
 
 
 def fixture_ids():
@@ -110,17 +119,20 @@ def wait_for_run(repo, ref, fixture_id, cache_mode, benchmark_role, commit_sha,
     deadline = time.monotonic() + timeout_minutes * 60
     run_record = None
     while time.monotonic() < deadline:
-        run_record = list_matching_run(
-            repo, ref, fixture_id, cache_mode, benchmark_role, commit_sha,
-            study_id, known_run_ids,
-        )
-        if run_record:
-            details = gh_json([
-                "run", "view", str(run_record["databaseId"]), "--repo", repo,
-                "--json", "databaseId,status,conclusion,headSha,url,jobs",
-            ])
-            if details.get("status") == "completed":
-                return details
+        try:
+            run_record = list_matching_run(
+                repo, ref, fixture_id, cache_mode, benchmark_role, commit_sha,
+                study_id, known_run_ids,
+            )
+            if run_record:
+                details = gh_json([
+                    "run", "view", str(run_record["databaseId"]), "--repo", repo,
+                    "--json", "databaseId,status,conclusion,headSha,url,jobs",
+                ])
+                if details.get("status") == "completed":
+                    return details
+        except RuntimeError as error:
+            print(f"GitHub API polling failed temporarily: {error}; retrying", flush=True)
         time.sleep(20)
     if run_record:
         raise TimeoutError(f"Run {run_record['databaseId']} did not complete within {timeout_minutes} minutes")
@@ -187,26 +199,49 @@ def dispatch_case(repo, ref, expected_sha, output_root, fixture_id, cache_mode,
             "Stop and start a new study so all fixture runs share one commit."
         )
 
-    prior_runs = gh_json([
-        "run", "list", "--repo", repo, "--workflow", WORKFLOW_FILE,
-        "--branch", ref, "--event", "workflow_dispatch", "--limit", "100",
-        "--json", "databaseId",
-    ])
-    known_run_ids = {int(item["databaseId"]) for item in prior_runs}
-    dispatch = run_gh([
-        "workflow", "run", WORKFLOW_FILE, "--repo", repo, "--ref", ref,
-        "--field", f"fixture_id={fixture_id}",
-        "--field", "run_e4=false",
-        "--field", f"cache_mode={cache_mode}",
-        "--field", f"benchmark_role={benchmark_role}",
-        "--field", f"study_id={study_id}",
-    ])
-    print(f"Dispatch {run_key}: {dispatch.stdout.strip()}", flush=True)
-
-    details = wait_for_run(
+    existing = list_matching_run(
         repo, ref, fixture_id, cache_mode, benchmark_role,
-        expected_sha, study_id, timeout_minutes, known_run_ids,
+        expected_sha, study_id,
     )
+    if existing:
+        print(f"Resume: attach {run_key} to existing run {existing['databaseId']}", flush=True)
+        details = wait_for_run(
+            repo, ref, fixture_id, cache_mode, benchmark_role,
+            expected_sha, study_id, timeout_minutes,
+        )
+    else:
+        prior_runs = gh_json([
+            "run", "list", "--repo", repo, "--workflow", WORKFLOW_FILE,
+            "--branch", ref, "--event", "workflow_dispatch", "--limit", "100",
+            "--json", "databaseId",
+        ])
+        known_run_ids = {int(item["databaseId"]) for item in prior_runs}
+        try:
+            dispatch = run_gh([
+                "workflow", "run", WORKFLOW_FILE, "--repo", repo, "--ref", ref,
+                "--field", f"fixture_id={fixture_id}",
+                "--field", "run_e4=false",
+                "--field", f"cache_mode={cache_mode}",
+                "--field", f"benchmark_role={benchmark_role}",
+                "--field", f"study_id={study_id}",
+            ])
+            print(f"Dispatch {run_key}: {dispatch.stdout.strip()}", flush=True)
+        except RuntimeError:
+            # GitHub can return HTTP 500 after it has created the workflow run.
+            # Attach to the exact unique study run before attempting another dispatch.
+            existing = list_matching_run(
+                repo, ref, fixture_id, cache_mode, benchmark_role,
+                expected_sha, study_id,
+            )
+            if not existing:
+                raise
+            print(f"Resume: dispatch response failed; attach {run_key} to run {existing['databaseId']}", flush=True)
+            known_run_ids = set()
+
+        details = wait_for_run(
+            repo, ref, fixture_id, cache_mode, benchmark_role,
+            expected_sha, study_id, timeout_minutes, known_run_ids,
+        )
     run_id = details["databaseId"]
     artifact_dir = output_root / f"{run_key}-{run_id}"
     artifact_name = f"experiment-{fixture_id}"
@@ -249,6 +284,7 @@ def dispatch_case(repo, ref, expected_sha, output_root, fixture_id, cache_mode,
         "sample_type": sample_type,
         "cache_mode": cache_mode,
         "benchmark_role": benchmark_role,
+        "workflow_study_id": study_id,
         "run_id": run_id,
         "run_url": details.get("url"),
         "head_sha": details.get("headSha"),
@@ -337,10 +373,12 @@ def run_matrix(args):
     if args.e3_warm_repeats:
         key = "e3-warm-cache-prime"
         if key not in done:
+            workflow_study_id = f"{study_id}-{key}"
             entry = dispatch_case(
                 repo, args.ref, expected_sha, e3_root / "warmup", "baseline",
-                "warm", "warmup", study_id, key, args.timeout_minutes, index,
+                "warm", "warmup", workflow_study_id, key, args.timeout_minutes, index,
             )
+            entry["study_group_id"] = study_id
             atomic_write_json(index_path, index)
             print(f"Warm cache prime: {entry['classification']}", flush=True)
 
@@ -350,10 +388,12 @@ def run_matrix(args):
             if key in done:
                 print(f"Resume: skip complete {key}", flush=True)
                 continue
+            workflow_study_id = f"{study_id}-{key}"
             entry = dispatch_case(
                 repo, args.ref, expected_sha, e3_root / mode, "baseline",
-                mode, "measurement", study_id, key, args.timeout_minutes, index,
+                mode, "measurement", workflow_study_id, key, args.timeout_minutes, index,
             )
+            entry["study_group_id"] = study_id
             atomic_write_json(index_path, index)
             print(f"{key}: {entry['classification']}, wall={entry['workflow_wall_seconds']}s", flush=True)
 

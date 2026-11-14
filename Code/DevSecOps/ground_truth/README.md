@@ -31,10 +31,10 @@ Bộ dữ liệu chuẩn gồm **46 mẫu** được phân định chặt chẽ:
 | **D09** | SCA | `src/requirements.txt` | Trivy | `CVE-2024-35195` (requests 2.31.0) | CWE-670 | 5.6 (Medium) | No (không khớp tập con đã ghim) | — | PASS | BLOCK | WARN | Phiên bản bị ảnh hưởng, bản sửa từ 2.32.0; chưa gắn EPSS khi chưa có snapshot nguồn |
 | **D10** | SCA | `src/requirements.txt` | Trivy | `CVE-2023-45803` (urllib3 2.0.6) | CWE-200 | 4.2 (Medium) | No (không khớp tập con đã ghim) | — | PASS | BLOCK | WARN | Bản sửa từ 2.0.7; chưa gắn EPSS khi chưa có snapshot nguồn |
 | **D11** | SCA | `src/requirements.txt` | Trivy | `CVE-2024-24762` (fastapi 0.109.0) | CWE-1333 | 7.5 (High) | No (không khớp tập con đã ghim) | — | PASS | BLOCK | BLOCK | FastAPI bị ảnh hưởng trước 0.109.1; mức cao và có bản sửa |
-| **D12** | Image | `Code/DevSecOps/Dockerfile` | Checkov | `CKV_DOCKER_1` | CWE-829 | N/A (rule, không phải CVE) | N/A | — | PASS | BLOCK | BLOCK | Base image không ghim digest |
+| **D12** | Image | `Code/DevSecOps/Dockerfile` | Checkov | `CKV_DOCKER_7` | CWE-829 | N/A (rule, không phải CVE) | N/A | — | PASS | BLOCK | BLOCK | Base image dùng tag `latest` có thể thay đổi |
 | **D13** | Image | `Code/DevSecOps/Dockerfile` | Checkov | `CKV_DOCKER_3` | CWE-250 | N/A (rule, không phải CVE) | N/A | — | PASS | BLOCK | BLOCK | Container chạy dưới quyền root |
 | **D14** | Image | `Code/DevSecOps/Dockerfile` | Checkov | `CKV_DOCKER_4` | CWE-829 | N/A (rule, không phải CVE) | N/A | — | PASS | BLOCK | BLOCK | Lệnh ADD tải file từ URL từ xa không xác thực |
-| **D15** | Image | `Code/DevSecOps/Dockerfile` | Checkov | `CKV_DOCKER_7` | CWE-284 | N/A (rule, không phải CVE) | N/A | — | PASS | BLOCK | BLOCK | Cài đặt sshd và mở cổng 22 trong container |
+| **D15** | Image | `Code/DevSecOps/Dockerfile` | Checkov | `CKV_DOCKER_1` | CWE-284 | N/A (rule, không phải CVE) | N/A | — | PASS | BLOCK | BLOCK | Cài đặt sshd và mở cổng 22 trong container |
 | **D16** | IaC | `infra/security_groups.tf` | Checkov | `CKV_AWS_24` | CWE-284 | N/A (rule, không phải CVE) | N/A | — | PASS | BLOCK | BLOCK | Khóa kiểm soát cao: Mở SSH 0.0.0.0/0 ra Internet |
 | **D17** | IaC | `infra/iam.tf` | Checkov | `CKV_AWS_1` | CWE-732 | N/A (rule, không phải CVE) | N/A | — | PASS | BLOCK | BLOCK | Khóa kiểm soát cao: Wildcard Action và Resource `*` |
 | **D18** | IaC | `infra/s3.tf` | Checkov | `CKV_AWS_53` | CWE-284 | N/A (rule, không phải CVE) | N/A | — | PASS | BLOCK | BLOCK | Khóa kiểm soát cao: Tắt Public Access Block S3 |
@@ -47,7 +47,7 @@ Bộ dữ liệu chuẩn gồm **46 mẫu** được phân định chặt chẽ:
 | **D25** | K8s | `deploy/deployment.yaml` | Trivy | `KSV-0109` | CWE-522 | N/A (rule, không phải CVE) | N/A | — | PASS | BLOCK | BLOCK | Mật khẩu lưu dạng plaintext trong ConfigMap |
 | **D26** | CI | `.github/workflows/ci.yml` | Checkov | `CKV2_GHA_1` | CWE-732 | N/A (rule, không phải CVE) | N/A | — | PASS | BLOCK | BLOCK | Khóa kiểm soát cao: GITHUB_TOKEN cấp `write-all` |
 | **D27** | CI | `.github/workflows/ci.yml` | Checkov | `CKV_GHA_2` | CWE-78 | N/A (rule, không phải CVE) | N/A | — | PASS | BLOCK | BLOCK | Khóa kiểm soát cao: Script injection trong `run:` |
-| **D28** | CI | `.github/workflows/ci.yml` | Checkov | `CKV_GHA_7` | CWE-829 | N/A (rule, không phải CVE) | N/A | — | PASS | BLOCK | WARN | Action tham chiếu theo branch/tag thay vì commit SHA |
+| **D28** | CI | `.github/workflows/ci.yml` | Conftest/Rego | `DSEC_GHA_001` | CWE-829 | N/A (rule, không phải CVE) | N/A | — | PASS | BLOCK | BLOCK | Action tham chiếu theo branch/tag thay vì commit SHA |
 
 ---
 
@@ -62,7 +62,7 @@ Bộ dữ liệu chuẩn gồm **46 mẫu** được phân định chặt chẽ:
 | **N05** | Image | `Code/DevSecOps/Dockerfile` | Chỉ thị `USER 10001` chạy dưới tài khoản không đặc quyền | D13 (Root user) | Máy quét bỏ qua (PASS) |
 | **N06** | IaC | `infra/security_groups.tf` | Ingress cổng 22 chỉ cho phép truy cập từ dải mạng nội bộ VPC (`10.0.0.0/16`) | D16 (Open SSH 0.0.0.0/0) | Máy quét bỏ qua (PASS) |
 | **N07** | K8s | `deploy/deployment.yaml` | Cấu hình tường minh cả `resources.requests` và `resources.limits` cho container | D22 (No resource limits) | Máy quét bỏ qua (PASS) |
-| **N08** | CI | `.github/workflows/ci.yml` | Action được ghim chính xác bằng mã băm commit 40 ký tự (Immutable commit SHA) | D28 (Mutable action ref) | Máy quét bỏ qua (PASS) |
+| **N08** | CI | `.github/workflows/ci.yml` | Action được ghim chính xác bằng mã băm commit 40 ký tự (Immutable commit SHA) | D28 (Mutable action ref) | Conftest bỏ qua (PASS) |
 
 ---
 
