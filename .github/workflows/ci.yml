@@ -273,7 +273,8 @@ jobs:
             --compact --soft-fail -o json > reports/checkov-iac.stream.json || true
           checkov -f Dockerfile --framework dockerfile \
             --compact --soft-fail -o json > reports/checkov-dockerfile.stream.json || true
-          checkov -d ../../.github/workflows --framework github_actions \
+          # .github là thư mục ẩn; chỉ rõ file để Checkov không bỏ qua khi duyệt thư mục.
+          checkov -f ../../.github/workflows/ci.yml --framework github_actions \
             --compact --soft-fail -o json > reports/checkov-github-actions.stream.json || true
           for report in reports/checkov-iac.stream.json reports/checkov-dockerfile.stream.json reports/checkov-github-actions.stream.json; do
             test -s "$report"
