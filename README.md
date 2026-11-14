@@ -64,15 +64,16 @@ quét dùng Trivy 0.76.1 và runtime ghi một DB snapshot ở cấp image job
 `2026-11-01 07:08:40 UTC`; chưa có metadata riêng trước/sau từng lần quét.
 Image local IDs đã trích được nhưng `RepoDigests` rỗng. Lượt E4 này dùng Python 3.12.15
 ở image trước và 3.12.16 ở image sau, nên delta là quan sát có thật nhưng chưa
-thể quy riêng cho các kiểm soát Dockerfile. Dockerfile mẫu đã được đồng bộ
-phiên bản Python cho lượt kế tiếp. Các cảnh báo MEDIUM được truy về package:
-5 Python, 5 pip, 2 pytest và
-3 Starlette. Working tree nâng Python lên 3.13.18, pip lên 26.2.2 và pytest lên
-9.0.3; còn 3 cảnh báo Starlette được giữ lại do cần nhảy sang nhánh 1.x Alpha.
-Đây là remediation dự kiến cho 12 cảnh báo; chưa có CI run xác nhận số warning
-sau nâng cấp. Checkov raw trong artifact là stream 3 JSON document: loader của
-dự án đọc được, còn `json.load` báo `Extra data` ở dòng 6354. Workflow local
-đã đổi để giữ `checkov.stream.json` và xuất `checkov.json` dạng array; chờ run
+thể quy riêng cho các kiểm soát Dockerfile. Các cảnh báo MEDIUM được truy về package:
+5 Python, 5 pip, 2 pytest và 3 Starlette. Sau run #13, working tree nâng Python
+lên 3.13.18, pip lên 26.3, pytest lên 9.0.3, FastAPI lên 0.162.7 và Starlette
+lên 1.10.0; image runtime đã bỏ pip và nâng ngưỡng bảo mật APT/zlib. Bản image
+local mới nhất qua 64/64 pytest; Trivy không còn ba CVE gây BLOCK trong log mới
+nhất và không tìm thấy HIGH/CRITICAL có bản vá. Đây là xác nhận cục bộ, chưa phải
+kết quả CI; số warning của workflow chỉ được chốt sau một run mới. Checkov raw
+trong artifact là stream 3 JSON document: loader của dự án đọc được, còn
+`json.load` báo `Extra data` ở dòng 6354. Workflow local đã đổi để giữ
+`checkov.stream.json` và xuất `checkov.json` dạng array; chờ run
 mới xác nhận. Chưa đủ để kết luận recall, false-positive rate hoặc thời gian
 đại diện vì chưa có đủ fixture D/C/N. Một observation truy vết
 được ghi thời gian ba job scan là 28s (security-scan), 37s (IaC) và 171s

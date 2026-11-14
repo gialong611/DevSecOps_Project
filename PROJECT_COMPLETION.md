@@ -33,6 +33,7 @@ chưa chạy; không dùng dữ liệu thăm dò để tuyên bố recall hoặc
 - `tests/run_fixture_matrix.py` dispatch từng fixture độc lập, khóa tất cả vào một commit, tải observation và tự tạo báo cáo E1/E2. Script cũng hỗ trợ lặp E3 cold/warm và resume sau khi bị gián đoạn.
 - `tests/summarize_e3_live.py` báo median, IQR, p90, wall time, runner-minutes, từng job, số lượt hợp lệ và trạng thái thiếu bằng chứng.
 - E4 đọc phiên bản Python trực tiếp trong container, ghi config digest và SHA-256 Dockerfile, dùng lại Trivy DB đã ghi metadata và có chế độ fail nếu so sánh không tương thích.
+- Bản image runtime được vá APT/zlib theo security floor, cập nhật FastAPI/Starlette, và loại pip khỏi runtime. Xác minh local: image build thành công, 64/64 pytest pass, Trivy không còn ba CVE đang gây BLOCK và không còn HIGH/CRITICAL có bản vá; vẫn cần CI run mới để xác nhận gate thực tế.
 - Metric E1/E2/E3 phát lại từ CSV được gắn rõ nhãn thăm dò; không thể hiện như kết quả scanner live.
 
 ## Cách thu bằng chứng sau khi các thay đổi được đẩy lên GitHub

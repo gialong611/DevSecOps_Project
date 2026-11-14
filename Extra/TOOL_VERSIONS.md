@@ -41,7 +41,7 @@ Ghi chú: Trivy được gọi trực tiếp bằng CLI ghim phiên bản (khôn
 |---|---|---|
 | Runner | ubuntu-24.04 | ghim trong `runs-on` |
 | Python (job test/scan/gate) | 3.13.18 | `actions/setup-python` |
-| pip / pytest | 26.2.2 / 9.0.3 | pip và pytest được ghim trong workflow/requirements |
+| pip / pytest | 26.3 / 9.0.3 | pip và pytest được ghim trong workflow/requirements |
 | jsonschema | 4.26.0 | kiểm tra finding schema trong test và gate; ghim trong requirements/workflow |
 | Python (phát triển cục bộ) | >= 3.11 | `Code/DevSecOps/src/requirements.txt` |
 

@@ -2,6 +2,8 @@
 
 Nguồn: [run #13, attempt 1](https://github.com/gialong611/DevSecOps_Project/actions/runs/41288998886/attempts/1), commit `cbcef8e32d5b007229be5e424409e8ee00fe278e`. Các ID và phiên bản cài đặt lấy từ artifact `report-gate`/`report-scan`; các phiên bản đích bên dưới là remediation local và chưa được CI xác nhận.
 
+> Đây là phân tích lịch sử của run #13. Các quyết định “hoãn Starlette” và phiên bản trong bảng phản ánh working tree tại thời điểm triage, không còn là cấu hình hiện tại.
+
 | Package | Cảnh báo | Phiên bản trong artifact | Thay đổi local | ID advisory | Trạng thái |
 |---|---:|---|---|---|---|
 | Python base image | 5 | 3.12.16 | `python:3.13.18` | CVE-2025-12781, CVE-2025-15366, CVE-2025-15367, CVE-2026-3446, CVE-2026-6019 | Đã đổi base image và setup-python; chờ scan mới |
@@ -15,6 +17,13 @@ Nguồn: [run #13, attempt 1](https://github.com/gialong611/DevSecOps_Project/ac
 - Local changes nhắm tới 12/15 cảnh báo MEDIUM; 3 Starlette được hoãn. Nếu scan mới xác nhận cả 12 advisory đã hết và không xuất hiện finding mới, dự kiến còn 18 warning (15 HIGH + 3 MEDIUM). Đây là dự báo, không phải số đo.
 - Không nâng 15 HIGH thành BLOCK: artifact ghi chúng chưa có bản vá; gate hiện cảnh báo để tránh chặn không có remediation khả thi.
 - Chỉ chốt kết quả sau CI: xác nhận phiên bản package/image thực tế, chạy unit tests/compatibility, kiểm tra finding ID và warning count, sau đó cập nhật `ci_baseline_latest.json`.
+
+## Xác minh cục bộ sau remediation
+
+- Runtime image hiện nâng APT/zlib tới security floor đã vá, nâng FastAPI lên `0.162.7` và Starlette lên `1.10.0`, dùng pip `26.3` khi build rồi loại pip khỏi image runtime.
+- Build image cục bộ thành công; `pytest` trong image: **64 passed**.
+- Trivy `0.76.1` trên image vừa build: ba CVE chặn gate của log mới nhất (`CVE-2026-109518`, `CVE-2026-76844`, `CVE-2026-85091`) đều vắng mặt; **0 HIGH/CRITICAL có bản vá**.
+- Đây là xác minh local, không thay thế CI. Cần chạy workflow mới để xác nhận `gate_input.json`, số warning cuối cùng và trạng thái gate trên GitHub.
 
 ## Căn cứ phiên bản
 

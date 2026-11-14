@@ -319,6 +319,23 @@ def test_e4_dockerfile_checks_real_files():
     assert a["multi_stage"] is True
 
 
+def test_runtime_dockerfile_enforces_debian_apt_and_zlib_security_floors():
+    dockerfile = (TESTS_DIR.parent / "Dockerfile").read_text(encoding="utf-8")
+    assert "https://deb.debian.org/" in dockerfile
+    assert "Acquire::Retries=0" in dockerfile
+    assert "--only-upgrade apt zlib1g" in dockerfile
+    assert '"3.0.4"' in dockerfile
+    assert '"1:1.3.dfsg+really1.3.1-1+deb13u1"' in dockerfile
+    assert "/usr/local/lib/python3.13/site-packages/pip" in dockerfile
+    assert "/opt/venv/lib/python3.13/site-packages/pip" in dockerfile
+
+
+def test_runtime_framework_dependencies_are_pinned_to_fixed_versions():
+    requirements = (TESTS_DIR.parent / "src" / "requirements.txt").read_text(encoding="utf-8")
+    assert "fastapi==0.162.7" in requirements
+    assert "starlette==1.10.0" in requirements
+
+
 def test_e4_g2_sca_decision_rules():
     assert e4.g2_sca_decision("LOW", True, 0.0, False, "low") == "BLOCK"  # KEV
     assert e4.g2_sca_decision("LOW", False, 0.2, False, "low") == "BLOCK"  # EPSS cao
