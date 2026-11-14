@@ -150,6 +150,13 @@ deny contains msg if {
 # ---- Cảnh báo, không chặn ----
 warn contains msg if {
 	some f in input.findings
+	f.category == "sast"
+	f.severity == "MEDIUM"
+	msg := sprintf("WARN SAST MEDIUM cần đánh giá: %s", [f.rule_id])
+}
+
+warn contains msg if {
+	some f in input.findings
 	f.category in {"sca", "image"}
 	f.severity == "HIGH"
 	f.fix_available == false

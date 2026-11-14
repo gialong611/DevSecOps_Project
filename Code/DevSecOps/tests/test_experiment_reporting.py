@@ -16,6 +16,21 @@ import run_fixture_matrix as matrix  # noqa: E402
 import summarize_e3_live as e3  # noqa: E402
 
 
+def test_ground_truth_declares_gate_action_for_every_fixture():
+    ground_truth = fixtures.load_ground_truth(
+        Path(__file__).parents[1] / "ground_truth" / "ground_truth.csv"
+    )
+    assert len(ground_truth) == 46
+    assert all(
+        row.get(f"expected_{policy}") in {"PASS", "WARN", "BLOCK"}
+        for row in ground_truth.values()
+        for policy in fixtures.POLICIES
+    )
+    assert ground_truth["D10"]["expected_g2"] == "BLOCK"
+    assert ground_truth["D23"]["expected_g2"] == "BLOCK"
+    assert ground_truth["D20"]["expected_g2"] == "WARN"
+
+
 def test_static_policy_decisions_are_not_labeled_as_live_scanner_metrics():
     metrics = e1.compute_metrics(
         {"D01": {"severity": "CRITICAL"}},
@@ -127,6 +142,7 @@ def test_e3_requires_five_runs_per_cache_with_one_commit_and_db_snapshot(tmp_pat
 
 def test_fixture_comparison_requires_target_rule_and_file():
     assert fixtures.path_matches("Code/DevSecOps/src/app/main.py", "src/app/main.py")
+    assert fixtures.path_matches("/security_groups.tf", "infra/security_groups.tf")
     assert fixtures.finding_matches_rule(
         {"rule_id": "semgrep.sql-injection", "resource": ""},
         ["sql-injection"],
@@ -135,6 +151,80 @@ def test_fixture_comparison_requires_target_rule_and_file():
         {"rule_id": "semgrep.other", "resource": ""},
         ["sql-injection"],
     )
+
+
+def test_checkov_identity_ignores_line_fingerprint_but_keeps_rule_resource_and_file():
+    original = {
+        "tool": "checkov",
+        "rule_id": "CKV_AWS_24",
+        "resource": "aws_security_group.app",
+        "file": "/security_groups.tf",
+        "fingerprint": "line-10",
+    }
+    shifted = {**original, "fingerprint": "line-14"}
+    assert fixtures.finding_identity(original) == fixtures.finding_identity(shifted)
+    assert fixtures.finding_identity(original) != fixtures.finding_identity(
+        {**shifted, "resource": "aws_security_group.other"}
+    )
+
+
+def test_sca_match_uses_cve_when_trivy_reports_installed_metadata_path():
+    expected = {
+        "category": "sca",
+        "expected_tool": "trivy",
+        "file": "src/requirements.txt",
+        "rule_or_cve": "CVE-2024-35195",
+    }
+    finding = {
+        "tool": "trivy",
+        "rule_id": "CVE-2024-35195",
+        "file": "/opt/venv/lib/python3.13/site-packages/requests-2.31.0.dist-info/METADATA",
+    }
+    assert fixtures.finding_matches_defect(finding, expected)
+    assert not fixtures.finding_matches_defect(
+        {**finding, "rule_id": "CVE-2025-00001"}, expected
+    )
+
+
+def test_policy_confusion_and_warning_delta_respect_expected_warn_action():
+    assert fixtures.policy_confusion_bucket("WARN", False) == "TN"
+    assert fixtures.policy_confusion_bucket("WARN", True) == "FP"
+    assert fixtures.policy_confusion_bucket("BLOCK", True) == "TP"
+    baseline = {"policy_runs": [{
+        "policy": "g2",
+        "warnings": [{
+            "rule_id": "warn",
+            "message": "WARN IaC controls require review",
+            "control_ids": ["CKV_AWS_21"],
+            "advisory_ids": [],
+            "affected_findings": [{"tool": "checkov", "category": "iac", "title": "CKV_AWS_21", "resource": "aws_s3_bucket.logs"}],
+        }],
+    }]}
+    changed = {"policy_runs": [{
+        "policy": "g2",
+        "warnings": [{
+            "rule_id": "warn",
+            "message": "WARN IaC controls require review",
+            "control_ids": ["CKV_AWS_21", "CKV_K8S_11"],
+            "advisory_ids": [],
+            "affected_findings": [{"tool": "checkov", "category": "iac", "title": "CKV_AWS_21", "resource": "aws_s3_bucket.logs"}],
+        }],
+    }]}
+    assert len(fixtures.new_warnings_for_policy(changed, baseline, "g2")) == 1
+    changed_same_controls = {"policy_runs": [{
+        "policy": "g2",
+        "warnings": [{
+            "rule_id": "warn",
+            "message": "WARN IaC controls require review",
+            "control_ids": ["CKV_AWS_21"],
+            "advisory_ids": [],
+            "affected_findings": [
+                {"tool": "checkov", "category": "iac", "title": "CKV_AWS_21", "resource": "aws_s3_bucket.logs"},
+                {"tool": "checkov", "category": "iac", "title": "CKV_AWS_21", "resource": "aws_s3_bucket.app"},
+            ],
+        }],
+    }]}
+    assert len(fixtures.new_warnings_for_policy(changed_same_controls, baseline, "g2")) == 1
 
 
 def test_run_matrix_timing_counts_wall_and_runner_time_separately():
@@ -324,6 +414,28 @@ def test_e1_e3_observation_does_not_require_optional_e4_artifacts(monkeypatch, t
         }),
         encoding="utf-8",
     )
+    for policy in ("g0", "g1", "g2"):
+        (experiment / f"gate-report-{policy}.json").write_text(
+            json.dumps({
+                "decision": "PASS" if policy == "g0" else "WARN",
+                "summary": {"blockers": 0, "warnings": 1},
+                "blockers": [],
+                "warnings": [{
+                    "rule_id": "warn",
+                    "message": "WARN MEDIUM có bản vá: CVE-2024-35195",
+                    "file": "gate_input.json",
+                    "severity": "MEDIUM",
+                    "advisory_ids": ["CVE-2024-35195"],
+                    "control_ids": [],
+                    "affected_findings": [{
+                        "tool": "trivy", "category": "sca", "title": "CVE-2024-35195",
+                        "file": "src/requirements.txt", "resource": "requests",
+                        "package": "requests", "installed_version": "2.31.0",
+                    }],
+                }],
+            }),
+            encoding="utf-8",
+        )
     gate = tmp_path / "gate.json"
     gate.write_text(json.dumps({"decision": "PASS", "policy_profile": "g2", "summary": {}}), encoding="utf-8")
     timing = tmp_path / "timing.json"
@@ -364,7 +476,9 @@ def test_e1_e3_observation_does_not_require_optional_e4_artifacts(monkeypatch, t
     assert observation.main() == 0
     result = json.loads(out.read_text(encoding="utf-8"))
     assert result["evidence_status"] == "complete"
-    assert result["schema_version"] == 4
+    assert result["schema_version"] == 5
+    assert result["policy_runs"][2]["warnings"][0]["advisory_ids"] == ["CVE-2024-35195"]
+    assert result["policy_runs"][2]["warnings"][0]["affected_findings"][0]["resource"] == "requests"
     assert result["e4_evidence_status"] == "not_requested"
     assert result["e4_requested"] is False
     assert all(not value["present"] for value in result["e4_raw_reports"].values())

@@ -145,6 +145,10 @@ def main() -> int:
         if error or not isinstance(report, dict):
             issues.append(f"invalid {policy} experiment gate report: {error or 'not an object'}")
             continue
+        if not isinstance(report.get("blockers"), list):
+            issues.append(f"{policy} experiment gate report has no blockers array")
+        if not isinstance(report.get("warnings"), list):
+            issues.append(f"{policy} experiment gate report has no warnings array")
         policy_runs.append({
             "policy": policy,
             "decision": report.get("decision"),
@@ -155,7 +159,32 @@ def main() -> int:
                     "message": item.get("message"),
                     "file": item.get("file"),
                 }
-                for item in report.get("blockers", [])
+                for item in report.get("blockers", []) if isinstance(report.get("blockers"), list)
+                if isinstance(item, dict)
+            ],
+            "warnings": [
+                {
+                    "rule_id": item.get("rule_id"),
+                    "message": item.get("message"),
+                    "file": item.get("file"),
+                    "severity": item.get("severity"),
+                    "advisory_ids": item.get("advisory_ids", []),
+                    "control_ids": item.get("control_ids", []),
+                    "affected_findings": [
+                        {
+                            "tool": affected.get("tool"),
+                            "category": affected.get("category"),
+                            "title": affected.get("title"),
+                            "file": affected.get("file"),
+                            "resource": affected.get("resource"),
+                            "package": affected.get("package"),
+                            "installed_version": affected.get("installed_version"),
+                        }
+                        for affected in item.get("affected_findings", [])
+                        if isinstance(affected, dict)
+                    ],
+                }
+                for item in report.get("warnings", []) if isinstance(report.get("warnings"), list)
                 if isinstance(item, dict)
             ],
         })
@@ -255,7 +284,7 @@ def main() -> int:
         run_url += f"/attempts/{attempt}"
 
     record = {
-        "schema_version": 4,
+        "schema_version": 5,
         "evidence_status": "complete" if not issues and run_url else "partial",
         "sample_type": "repository-baseline" if fixture_id == "baseline" else "patch-fixture",
         "fixture_id": fixture_id,

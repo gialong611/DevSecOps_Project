@@ -1,6 +1,6 @@
 # Bảng ánh xạ lỗi thực nghiệm (Ground Truth & CWE/CVE Mapping)
 
-Tài liệu này mô tả chi tiết bộ dữ liệu chuẩn (Ground Truth) phục vụ các thực nghiệm **E1** (Đánh giá khả năng phát hiện lỗi) và **E2** (So sánh hiệu quả chính sách Security Gate G0, G1, G2).
+Tài liệu này mô tả bộ Ground Truth cho E1 (scanner có tìm thấy lỗi gieo cài không) và E2 (gate có thực hiện đúng hành động dự kiến không). CSV ghi rõ expected_g0/expected_g1/expected_g2; các cột này là giả thuyết policy cần đối chiếu, không phải kết quả đo. Kết quả thực tế chỉ lấy từ observation của GitHub Actions sau khi ghép cùng baseline.
 
 ## Người phụ trách: Hoàng Gia Long (Long - gialong611)
 
@@ -20,17 +20,17 @@ Bộ dữ liệu chuẩn gồm **46 mẫu** được phân định chặt chẽ:
 
 | ID | Lớp quét | Tệp vi phạm | Công cụ | Rule ID / CVE ID | Mã CWE | CVSS v3.1 (NVD, chỉ CVE) | KEV (tập con đã ghim) | EPSS (snapshot đã ghim) | G0 | G1 | G2 | Lý do phân tầng G2 |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| **D01** | SAST | `src/app/main.py` | Semgrep | `python.sqli.concatenation` | CWE-89 | N/A (rule, không phải CVE) | N/A | — | PASS | BLOCK | BLOCK | SAST High/Critical (nguy cơ chiếm quyền DB) |
-| **D02** | SAST | `src/app/main.py` | Semgrep | `python.secrets.hardcoded` | CWE-798 | N/A (rule, không phải CVE) | N/A | — | PASS | BLOCK | BLOCK | Lộ mật khẩu cứng trong mã nguồn |
-| **D03** | SAST | `src/app/main.py` | Semgrep | `python.exec.command-injection` | CWE-78 | N/A (rule, không phải CVE) | N/A | — | PASS | BLOCK | BLOCK | Command Injection cho phép RCE |
-| **D04** | SAST | `src/app/main.py` | Semgrep | `python.file.path-traversal` | CWE-22 | N/A (rule, không phải CVE) | N/A | — | PASS | BLOCK | WARN | Mức Medium, hạ xuống WARN tránh nghẽn |
-| **D05** | SAST | `src/app/main.py` | Semgrep | `python.pickle.insecure-deserialization` | CWE-502 | N/A (rule, không phải CVE) | N/A | — | PASS | BLOCK | BLOCK | Deserialization pickle dẫn tới RCE |
-| **D06** | SAST | `src/app/main.py` | Semgrep | `python.crypto.weak-hash-md5` | CWE-328 | N/A (rule, không phải CVE) | N/A | — | PASS | BLOCK | WARN | Thuật toán băm yếu mức Medium, cảnh báo |
+| **D01** | SAST | `src/app/main.py` | Semgrep | `rules.semgrep.python.sqli.concatenation` | CWE-89 | N/A (rule, không phải CVE) | N/A | — | PASS | BLOCK | BLOCK | SAST High/Critical (nguy cơ chiếm quyền DB) |
+| **D02** | SAST | `src/app/main.py` | Semgrep | `rules.semgrep.python.secrets.hardcoded` | CWE-798 | N/A (rule, không phải CVE) | N/A | — | PASS | BLOCK | BLOCK | Lộ mật khẩu cứng trong mã nguồn |
+| **D03** | SAST | `src/app/main.py` | Semgrep | `rules.semgrep.python.exec.command-injection` | CWE-78 | N/A (rule, không phải CVE) | N/A | — | PASS | BLOCK | BLOCK | Command Injection cho phép RCE |
+| **D04** | SAST | `src/app/main.py` | Semgrep | `rules.semgrep.python.file.path-traversal` | CWE-22 | N/A (rule, không phải CVE) | N/A | — | PASS | BLOCK | WARN | Mức Medium, hạ xuống WARN tránh nghẽn |
+| **D05** | SAST | `src/app/main.py` | Semgrep | `rules.semgrep.python.pickle.insecure-deserialization` | CWE-502 | N/A (rule, không phải CVE) | N/A | — | PASS | BLOCK | BLOCK | Deserialization pickle dẫn tới RCE |
+| **D06** | SAST | `src/app/main.py` | Semgrep | `rules.semgrep.python.crypto.weak-hash-md5` | CWE-328 | N/A (rule, không phải CVE) | N/A | — | PASS | BLOCK | WARN | Thuật toán băm yếu mức Medium, cảnh báo |
 | **D07** | Secret | `.github/workflows/ci.yml` | Gitleaks | `generic-api-key` | CWE-798 | N/A (rule, không phải CVE) | N/A | — | PASS | BLOCK | BLOCK | Secret luôn BLOCK (không cho phép ngoại lệ) |
-| **D08** | Secret | `src/app/main.py` | Gitleaks | `generic-secret` | CWE-798 | N/A (rule, không phải CVE) | N/A | — | PASS | BLOCK | BLOCK | Secret luôn BLOCK (không cho phép ngoại lệ) |
+| **D08** | Secret | `src/app/main.py` | Gitleaks | `generic-api-key` | CWE-798 | N/A (rule, không phải CVE) | N/A | — | PASS | BLOCK | BLOCK | Secret luôn BLOCK (không cho phép ngoại lệ) |
 | **D09** | SCA | `src/requirements.txt` | Trivy | `CVE-2024-35195` (requests 2.31.0) | CWE-670 | 5.6 (Medium) | No (không khớp tập con đã ghim) | — | PASS | BLOCK | WARN | Phiên bản bị ảnh hưởng, bản sửa từ 2.32.0; chưa gắn EPSS khi chưa có snapshot nguồn |
-| **D10** | SCA | `src/requirements.txt` | Trivy | `CVE-2023-45803` (urllib3 2.0.6) | CWE-200 | 4.2 (Medium) | No (không khớp tập con đã ghim) | — | PASS | BLOCK | WARN | Bản sửa từ 2.0.7; chưa gắn EPSS khi chưa có snapshot nguồn |
-| **D11** | SCA | `src/requirements.txt` | Trivy | `CVE-2024-24762` (fastapi 0.109.0) | CWE-1333 | 7.5 (High) | No (không khớp tập con đã ghim) | — | PASS | BLOCK | BLOCK | FastAPI bị ảnh hưởng trước 0.109.1; mức cao và có bản sửa |
+| **D10** | SCA | `src/requirements.txt` | Trivy | `CVE-2023-45803` (urllib3 2.0.6) | CWE-200 | 4.2 (Medium) | No (không khớp tập con đã ghim) | — | PASS | BLOCK | BLOCK | CVE đích có mức Medium; snapshot Trivy còn tìm thấy CVE HIGH mới trong urllib3 2.0.6 nên G2 chặn theo rủi ro tổng hợp |
+| **D11** | SCA | `src/requirements.txt` | Trivy | `CVE-2024-24762` (python-multipart 0.0.6 qua Form endpoint) | CWE-1333 | 7.5 (High) | No (không khớp tập con đã ghim) | — | PASS | BLOCK | BLOCK | Gieo đúng dependency parser multipart bị ảnh hưởng; bản sửa từ 0.0.7. Form endpoint làm rõ bề mặt sử dụng và tránh CVE ngoài mục tiêu do hạ FastAPI/Starlette |
 | **D12** | Image | `Code/DevSecOps/Dockerfile` | Checkov | `CKV_DOCKER_7` | CWE-829 | N/A (rule, không phải CVE) | N/A | — | PASS | BLOCK | BLOCK | Base image dùng tag `latest` có thể thay đổi |
 | **D13** | Image | `Code/DevSecOps/Dockerfile` | Checkov | `CKV_DOCKER_3` | CWE-250 | N/A (rule, không phải CVE) | N/A | — | PASS | BLOCK | BLOCK | Container chạy dưới quyền root |
 | **D14** | Image | `Code/DevSecOps/Dockerfile` | Checkov | `CKV_DOCKER_4` | CWE-829 | N/A (rule, không phải CVE) | N/A | — | PASS | BLOCK | BLOCK | Lệnh ADD tải file từ URL từ xa không xác thực |
@@ -39,10 +39,10 @@ Bộ dữ liệu chuẩn gồm **46 mẫu** được phân định chặt chẽ:
 | **D17** | IaC | `infra/iam.tf` | Checkov | `CKV_AWS_1` | CWE-732 | N/A (rule, không phải CVE) | N/A | — | PASS | BLOCK | BLOCK | Khóa kiểm soát cao: Wildcard Action và Resource `*` |
 | **D18** | IaC | `infra/s3.tf` | Checkov | `CKV_AWS_53` | CWE-284 | N/A (rule, không phải CVE) | N/A | — | PASS | BLOCK | BLOCK | Khóa kiểm soát cao: Tắt Public Access Block S3 |
 | **D19** | IaC | `infra/rds.tf` | Checkov | `CKV_AWS_17` | CWE-284 | N/A (rule, không phải CVE) | N/A | — | PASS | BLOCK | BLOCK | Khóa kiểm soát cao: Cơ sở dữ liệu RDS public |
-| **D20** | IaC | `infra/s3.tf` | Checkov | `CKV_AWS_21` | CWE-16 | N/A (rule, không phải CVE) | N/A | — | PASS | BLOCK | WARN | Thiếu versioning/logging S3: mức Medium, WARN |
+| **D20** | IaC | `infra/s3.tf` | Checkov | `CKV_AWS_21` | CWE-16 | N/A (rule, không phải CVE) | N/A | — | PASS | BLOCK | WARN | Checkov chấm HIGH; G2 hạ hành động xuống WARN theo khóa kiểm soát versioning S3 |
 | **D21** | K8s | `deploy/deployment.yaml` | Checkov | `CKV_K8S_16` | CWE-250 | N/A (rule, không phải CVE) | N/A | — | PASS | BLOCK | BLOCK | Khóa kiểm soát cao: Container chạy privileged |
-| **D22** | K8s | `deploy/deployment.yaml` | Checkov | `CKV_K8S_11` | CWE-400 | N/A (rule, không phải CVE) | N/A | — | PASS | BLOCK | WARN | Không đặt giới hạn tài nguyên: Medium, WARN |
-| **D23** | K8s | `deploy/deployment.yaml` | Checkov | `CKV_K8S_43` | CWE-829 | N/A (rule, không phải CVE) | N/A | — | PASS | BLOCK | WARN | Dùng tag `:latest` thay vì digest: Medium, WARN |
+| **D22** | K8s | `deploy/deployment.yaml` | Checkov | `CKV_K8S_11` | CWE-400 | N/A (rule, không phải CVE) | N/A | — | PASS | BLOCK | WARN | Checkov chấm HIGH; G2 cảnh báo thiếu giới hạn tài nguyên mà không chặn phát hành |
+| **D23** | K8s | `deploy/deployment.yaml` | Checkov | `CKV_K8S_14` | CWE-829 | N/A (rule, không phải CVE) | N/A | — | PASS | BLOCK | BLOCK | Checkov phát hiện image không ghim digest với mức HIGH; G2 chặn theo khóa kiểm soát CKV_K8S_14 |
 | **D24** | K8s | `deploy/serviceaccount.yaml` | Trivy | `KSV-0111` | CWE-269 | N/A (rule, không phải CVE) | N/A | — | PASS | BLOCK | BLOCK | ServiceAccount gán ClusterRole `cluster-admin` |
 | **D25** | K8s | `deploy/deployment.yaml` | Trivy | `KSV-0109` | CWE-522 | N/A (rule, không phải CVE) | N/A | — | PASS | BLOCK | BLOCK | Mật khẩu lưu dạng plaintext trong ConfigMap |
 | **D26** | CI | `.github/workflows/ci.yml` | Conftest/Rego | `DSEC_GHA_002` | CWE-732 | N/A (rule, không phải CVE) | N/A | — | PASS | BLOCK | BLOCK | Khóa kiểm soát cao: GITHUB_TOKEN cấp `write-all` |
@@ -58,7 +58,7 @@ Bộ dữ liệu chuẩn gồm **46 mẫu** được phân định chặt chẽ:
 | **N01** | SAST | `src/app/main.py` | Truy vấn cơ sở dữ liệu dùng cú pháp tham số hóa (`cursor.execute(sql, (param,))`) | D01 (SQLi) | Máy quét bỏ qua (PASS) |
 | **N02** | SAST | `src/test/test_main.py` | Chuỗi giả lập (`mock_token = "dummy_12345"`) nằm trong thư mục test | D02 (Hardcoded Secret) | Máy quét bỏ qua (PASS) |
 | **N03** | Secret | `src/app/main.py` | Đọc thông tin nhạy cảm qua biến môi trường (`os.environ.get("API_KEY")`) | D08 (Secret Token) | Máy quét bỏ qua (PASS) |
-| **N04** | SCA | `src/requirements.txt` | Dùng requests 2.34.2 và urllib3 2.6.0; FastAPI baseline đã cao hơn bản sửa D11 | D09–D11 (SCA CVEs) | Máy quét bỏ qua các CVE đích (PASS) |
+| **N04** | SCA | `src/requirements.txt` | Dùng requests 2.34.2, urllib3 2.8.0 và python-multipart 0.0.33 | D09–D11 (SCA CVEs) | Máy quét bỏ qua các CVE đích (PASS) |
 | **N05** | Image | `Code/DevSecOps/Dockerfile` | Chỉ thị `USER 10001` chạy dưới tài khoản không đặc quyền | D13 (Root user) | Máy quét bỏ qua (PASS) |
 | **N06** | IaC | `infra/security_groups.tf` | Ingress cổng 22 chỉ cho phép truy cập từ dải mạng nội bộ VPC (`10.0.0.0/16`) | D16 (Open SSH 0.0.0.0/0) | Máy quét bỏ qua (PASS) |
 | **N07** | K8s | `deploy/deployment.yaml` | Cấu hình tường minh cả `resources.requests` và `resources.limits` cho container | D22 (No resource limits) | Máy quét bỏ qua (PASS) |
