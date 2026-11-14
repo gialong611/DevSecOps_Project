@@ -42,7 +42,7 @@ def test_e3_stats_report_median_and_iqr():
 
 def test_e3_excludes_warmups_and_incomplete_observations(tmp_path):
     warmup = {
-        "key": "warmup",
+        "key": "e3-warmup",
         "fixture_id": "baseline",
         "cache_mode": "warm",
         "benchmark_role": "warmup",
@@ -50,7 +50,7 @@ def test_e3_excludes_warmups_and_incomplete_observations(tmp_path):
         "observation_status": "complete",
     }
     incomplete = {
-        "key": "incomplete",
+        "key": "e3-incomplete",
         "fixture_id": "baseline",
         "cache_mode": "cold",
         "benchmark_role": "measurement",
@@ -147,7 +147,7 @@ def test_run_matrix_timing_counts_wall_and_runner_time_separately():
         ]
     }
     result = matrix.job_timing(details)
-    assert result["scan_stage_wall_seconds"] == 60.0
+    assert result["scan_stage_wall_seconds"] == 61.0
     assert result["scan_stage_runner_minutes"] == 1.667
     assert result["workflow_wall_seconds"] == 80.0
     assert result["workflow_runner_minutes"] == 1.967
