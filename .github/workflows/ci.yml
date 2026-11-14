@@ -266,24 +266,20 @@ jobs:
       - name: Checkov Terraform và Kubernetes (soft-fail, chỉ báo cáo)
         run: |
           mkdir -p reports
-          # Checkov không cho dùng --directory cùng --file; tách framework để
-          # bảo đảm Terraform/Kubernetes, Dockerfile và GitHub Actions đều được quét.
+          # Checkov không cho dùng --directory cùng --file; tách Terraform/Kubernetes
+          # và Dockerfile. GitHub Actions được kiểm tra bằng Conftest/Rego bên dưới.
           checkov -d infra -d deploy --framework terraform,kubernetes \
             --skip-path lab \
             --compact --soft-fail -o json > reports/checkov-iac.stream.json || true
           checkov -f Dockerfile --framework dockerfile \
             --compact --soft-fail -o json > reports/checkov-dockerfile.stream.json || true
-          # .github là thư mục ẩn; chỉ rõ file để Checkov không bỏ qua khi duyệt thư mục.
-          checkov -f ../../.github/workflows/ci.yml --framework github_actions \
-            --compact --soft-fail -o json > reports/checkov-github-actions.stream.json || true
-          for report in reports/checkov-iac.stream.json reports/checkov-dockerfile.stream.json reports/checkov-github-actions.stream.json; do
+          for report in reports/checkov-iac.stream.json reports/checkov-dockerfile.stream.json; do
             test -s "$report"
           done
           cat reports/checkov-iac.stream.json reports/checkov-dockerfile.stream.json \
-            reports/checkov-github-actions.stream.json > reports/checkov.stream.json
+            > reports/checkov.stream.json
           jq -s 'map(if type == "array" then .[] else . end)' \
-            reports/checkov-iac.stream.json reports/checkov-dockerfile.stream.json \
-            reports/checkov-github-actions.stream.json > reports/checkov.json
+            reports/checkov-iac.stream.json reports/checkov-dockerfile.stream.json > reports/checkov.json
 
       - name: Trivy config (chỉ báo cáo)
         run: trivy config --format json --output reports/trivy-config.json --exit-code 0 --skip-dirs lab .

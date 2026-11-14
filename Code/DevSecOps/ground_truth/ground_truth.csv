@@ -24,8 +24,8 @@ D22,defect,k8s,Code/DevSecOps/deploy/deployment.yaml,CKV_K8S_11,checkov,MEDIUM,C
 D23,defect,k8s,Code/DevSecOps/deploy/deployment.yaml,CKV_K8S_43,checkov,MEDIUM,Container image uses latest tag instead of digest,Tài
 D24,defect,k8s,Code/DevSecOps/deploy/serviceaccount.yaml,KSV-0111,trivy,HIGH,ServiceAccount bound to cluster-admin ClusterRole,Tài
 D25,defect,k8s,Code/DevSecOps/deploy/deployment.yaml,KSV-0109,trivy,HIGH,Password stored in ConfigMap plaintext,Tài
-D26,defect,workflow,.github/workflows/ci.yml,CKV2_GHA_1,checkov,HIGH,GitHub Actions workflow token has write-all permissions,Duy
-D27,defect,workflow,.github/workflows/ci.yml,CKV_GHA_2,checkov,HIGH,GitHub Actions run step vulnerable to script injection,Duy
+D26,defect,workflow,.github/workflows/ci.yml,DSEC_GHA_002,conftest,HIGH,GitHub Actions workflow token has write-all permissions,Duy
+D27,defect,workflow,.github/workflows/ci.yml,DSEC_GHA_003,conftest,HIGH,GitHub Actions run step vulnerable to script injection,Duy
 D28,defect,workflow,.github/workflows/ci.yml,DSEC_GHA_001,conftest,HIGH,GitHub Actions workflow uses mutable action reference,Duy
 C01,clean,sast,src/app/main.py,,semgrep,,,Long
 C02,clean,sast,src/app/main.py,,semgrep,,,Long

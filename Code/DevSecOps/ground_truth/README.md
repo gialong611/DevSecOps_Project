@@ -45,8 +45,8 @@ Bộ dữ liệu chuẩn gồm **46 mẫu** được phân định chặt chẽ:
 | **D23** | K8s | `deploy/deployment.yaml` | Checkov | `CKV_K8S_43` | CWE-829 | N/A (rule, không phải CVE) | N/A | — | PASS | BLOCK | WARN | Dùng tag `:latest` thay vì digest: Medium, WARN |
 | **D24** | K8s | `deploy/serviceaccount.yaml` | Trivy | `KSV-0111` | CWE-269 | N/A (rule, không phải CVE) | N/A | — | PASS | BLOCK | BLOCK | ServiceAccount gán ClusterRole `cluster-admin` |
 | **D25** | K8s | `deploy/deployment.yaml` | Trivy | `KSV-0109` | CWE-522 | N/A (rule, không phải CVE) | N/A | — | PASS | BLOCK | BLOCK | Mật khẩu lưu dạng plaintext trong ConfigMap |
-| **D26** | CI | `.github/workflows/ci.yml` | Checkov | `CKV2_GHA_1` | CWE-732 | N/A (rule, không phải CVE) | N/A | — | PASS | BLOCK | BLOCK | Khóa kiểm soát cao: GITHUB_TOKEN cấp `write-all` |
-| **D27** | CI | `.github/workflows/ci.yml` | Checkov | `CKV_GHA_2` | CWE-78 | N/A (rule, không phải CVE) | N/A | — | PASS | BLOCK | BLOCK | Khóa kiểm soát cao: Script injection trong `run:` |
+| **D26** | CI | `.github/workflows/ci.yml` | Conftest/Rego | `DSEC_GHA_002` | CWE-732 | N/A (rule, không phải CVE) | N/A | — | PASS | BLOCK | BLOCK | Khóa kiểm soát cao: GITHUB_TOKEN cấp `write-all` |
+| **D27** | CI | `.github/workflows/ci.yml` | Conftest/Rego | `DSEC_GHA_003` | CWE-78 | N/A (rule, không phải CVE) | N/A | — | PASS | BLOCK | BLOCK | Khóa kiểm soát cao: Script injection trong `run:` |
 | **D28** | CI | `.github/workflows/ci.yml` | Conftest/Rego | `DSEC_GHA_001` | CWE-829 | N/A (rule, không phải CVE) | N/A | — | PASS | BLOCK | BLOCK | Action tham chiếu theo branch/tag thay vì commit SHA |
 
 ---
