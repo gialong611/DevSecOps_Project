@@ -30,11 +30,12 @@ Pipeline chạy quá 10 phút.
 
 ## Mục 3. Trạng thái nguồn dữ liệu đang commit
 
-- Artifact baseline mới nhất đã đọc là [GitHub Actions run ID 43599931890](https://github.com/gialong611/DevSecOps_Project/actions/runs/43599931890/attempts/1), commit `9ca131a678017e89d804033c3d6b75e0f2c0f366`, schema observation v3, fixture `baseline`, event `push`. Bản trích số liệu tái lập nằm ở `tests/results/metrics/ci_baseline_latest.json`; dữ liệu lưu trữ cũ nằm ở `ci_baseline_legacy_history.json`.
-- Artifact ghi gate G2 `WARN`, pass, 292 finding chuẩn hóa, 0 blocker, 19 warning. Trivy config có 11 misconfiguration (2 HIGH, 6 MEDIUM, 3 LOW); Checkov có 77 finding. Gate artifact liên kết 19/19 CVE warning với finding nguồn, nhưng policy trong run chưa cảnh báo các finding IaC này.
-- E3 có một observation: security-scan 30s, IaC 34s, image 117s; đường găng scan song song 117s, tổng runner 3.017 phút. Đây chỉ là một cold run, không đủ so sánh cache hoặc suy rộng ổn định.
-- E4 được bỏ qua; SBOM phát hành ghi GHCR digest `sha256:655ac2d5f891848311013ed9b7e859f8bff78c21af1e2d567146f9df1eff04c9`, trong khi báo cáo image scan gắn tag cục bộ. Không coi đây là so sánh trước/sau.
-- Policy G2 sau artifact gom các IaC/K8s control được chọn thành một warning có danh sách ID; report bridge cũng được cập nhật để nối ID về finding nguồn. Kết quả policy mới cần một CI run khác để đo.
+- Artifact baseline mới nhất đã đọc là [GitHub Actions run ID 43606451482](https://github.com/gialong611/DevSecOps_Project/actions/runs/43606451482/attempts/1), commit `ff6f7c437655a59c1ee96cce89d47a5fed253ef3`, schema observation v3, fixture `baseline`, event `push`. Bản trích mới nằm ở `tests/results/metrics/ci_baseline_latest.json`; run trước được lưu tại `ci_baseline_run_43599931890.json`, dữ liệu cũ hơn tại `ci_baseline_legacy_history.json`.
+- Artifact ghi gate G2 `WARN`, pass, 292 finding chuẩn hóa, 0 blocker, 20 warning. Có 18 warning HIGH và 2 MEDIUM; 20/20 liên kết được tới 101 finding nguồn. Cảnh báo IaC tổng hợp liên kết 40 finding thuộc 17 control ID.
+- Trivy config có 11 misconfiguration (2 HIGH, 6 MEDIUM, 3 LOW); Checkov có 77 finding. `CKV_AWS_382` và `AWS-0104` không còn xuất hiện.
+- E3 có một observation: security-scan 29s, IaC 41s, image 114s; đường găng scan song song 114s, tổng runner 3.067 phút. Đây chỉ là một cold run, không đủ so sánh cache hoặc suy rộng ổn định.
+- E4 được bỏ qua; SBOM phát hành ghi GHCR digest `sha256:ca8c642b7949c97182e645effee49384413c4d9fdc31b511d3e650d1997de68a`, trong khi báo cáo image scan gắn tag cục bộ. Hai SBOM trùng tập PURL nhưng chưa truy vết scan tới digest phát hành; không coi đây là so sánh trước/sau.
+- Artifact mới xác nhận policy G2 tổng hợp IaC/K8s warning và report bridge liên kết rule ID về finding nguồn. D/C/N live matrix, E3 đủ 5 cold + 5 warm, PR block/pass và branch protection vẫn chưa có bằng chứng hoàn chỉnh.
 - Các số liệu run #13/#14 nêu ở hồ sơ cũ là lịch sử. `findings.csv`, `decisions.csv` và `runs.csv` vẫn là dữ liệu thiết kế/thăm dò; chúng không chứng minh scanner đã phát hiện lỗi theo từng fixture.
 - D/C/N live matrix, E3 đủ 5 cold + 5 warm, PR block/pass và branch protection vẫn chưa có bằng chứng hoàn chỉnh.
 - E4 T0 KEV/EPSS là mô phỏng. Chỉ được gọi là live khi có hai báo cáo Trivy, hai SBOM Syft, tool version, Python/OS/architecture và snapshot vulnerability DB xác nhận giống nhau; nếu không, báo `limited`/`incomplete` và không quy kết delta.

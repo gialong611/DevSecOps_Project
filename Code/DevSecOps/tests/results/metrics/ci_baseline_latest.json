@@ -1,14 +1,14 @@
 {
   "schema_version": 1,
-  "evidence_status": "artifact_observed_before_local_iac_warning_policy_change",
+  "evidence_status": "artifact_confirms_aggregated_iac_warning_policy",
   "run": {
-    "run_id": "43599931890",
+    "run_id": "43606451482",
     "attempt": "1",
-    "url": "https://github.com/gialong611/DevSecOps_Project/actions/runs/43599931890/attempts/1",
-    "commit": "9ca131a678017e89d804033c3d6b75e0f2c0f366",
+    "url": "https://github.com/gialong611/DevSecOps_Project/actions/runs/43606451482/attempts/1",
+    "commit": "ff6f7c437655a59c1ee96cce89d47a5fed253ef3",
     "ref": "refs/heads/main",
     "event": "push",
-    "recorded_at": "2026-11-14T13:30:47.112729Z",
+    "recorded_at": "2026-11-14T14:46:58.837102Z",
     "fixture_id": "baseline",
     "sample_type": "repository-baseline",
     "cache_mode": "cold",
@@ -43,11 +43,39 @@
     "decision": "WARN",
     "passed": true,
     "blockers": 0,
-    "warnings": 19,
+    "warnings": 20,
     "warning_correlation": {
-      "matched_policy_warnings": 19,
+      "matched_policy_warnings": 20,
       "unmatched_policy_warnings": 0,
-      "matched_source_findings": 61
+      "matched_source_findings": 101
+    },
+    "warning_severity_counts": {
+      "HIGH": 18,
+      "MEDIUM": 2
+    },
+    "iac_aggregate_warning": {
+      "count": 1,
+      "message": "WARN IaC controls require review: AWS-0077, AWS-0090, AWS-0132, AWS-0176, AWS-0177, AWS-0178, CKV2_AWS_11, CKV2_AWS_12, CKV2_AWS_30, CKV_AWS_129, CKV_AWS_145, CKV_AWS_161, CKV_AWS_21, CKV_AWS_226, CKV_AWS_293, CKV_K8S_35, KSV-0125",
+      "affected_findings": 40,
+      "control_ids": [
+        "AWS-0077",
+        "AWS-0090",
+        "AWS-0132",
+        "AWS-0176",
+        "AWS-0177",
+        "AWS-0178",
+        "CKV2_AWS_11",
+        "CKV2_AWS_12",
+        "CKV2_AWS_30",
+        "CKV_AWS_129",
+        "CKV_AWS_145",
+        "CKV_AWS_161",
+        "CKV_AWS_21",
+        "CKV_AWS_226",
+        "CKV_AWS_293",
+        "CKV_K8S_35",
+        "KSV-0125"
+      ]
     },
     "warning_messages": [
       {
@@ -136,6 +164,11 @@
         "affected_findings": 3
       },
       {
+        "severity": "HIGH",
+        "message": "WARN IaC controls require review: AWS-0077, AWS-0090, AWS-0132, AWS-0176, AWS-0177, AWS-0178, CKV2_AWS_11, CKV2_AWS_12, CKV2_AWS_30, CKV_AWS_129, CKV_AWS_145, CKV_AWS_161, CKV_AWS_21, CKV_AWS_226, CKV_AWS_293, CKV_K8S_35, KSV-0125",
+        "affected_findings": 40
+      },
+      {
         "severity": "MEDIUM",
         "message": "WARN MEDIUM có bản vá: CVE-2025-15367",
         "affected_findings": 1
@@ -146,6 +179,11 @@
         "affected_findings": 1
       }
     ]
+  },
+  "scanners": {
+    "semgrep_findings": 0,
+    "gitleaks_findings": 0,
+    "trivy_sca_findings": 0
   },
   "iac": {
     "trivy_misconfigurations": 11,
@@ -218,7 +256,7 @@
     "checkov_passed": 425,
     "egress_controls": {
       "CKV_AWS_382_checkov": 0,
-      "AWS-0104_trivy": 0
+      "AWS_0104_trivy": 0
     }
   },
   "image": {
@@ -242,7 +280,7 @@
     },
     "grype_fixable_high_critical": 0,
     "scan_image_reference": "devsecops-app:scan",
-    "scan_image_id": "sha256:351ec8b0d800df359b851f16c45b07b683a48f6877d0bcb7e5e65d7eee430262"
+    "scan_image_id": "sha256:19c1890a8d1f9a667cd3ef773606155103f40f6195acd4c6d1a755ce6bb37f45"
   },
   "sbom": {
     "scan_components": 2856,
@@ -250,31 +288,31 @@
     "component_sets_match_by_purl": true,
     "scan_image": "devsecops-app",
     "release_image": "ghcr.io/gialong611/devsecops",
-    "release_digest": "sha256:655ac2d5f891848311013ed9b7e859f8bff78c21af1e2d567146f9df1eff04c9",
+    "release_digest": "sha256:ca8c642b7949c97182e645effee49384413c4d9fdc31b511d3e650d1997de68a",
     "scan_digest_linked": false
   },
   "timing": {
     "evidence_status": "traceable_single_run",
-    "run_id": "43599931890",
+    "run_id": "43606451482",
     "run_attempt": "1",
-    "run_url": "https://github.com/gialong611/DevSecOps_Project/actions/runs/43599931890/attempts/1",
-    "commit": "9ca131a678017e89d804033c3d6b75e0f2c0f366",
+    "run_url": "https://github.com/gialong611/DevSecOps_Project/actions/runs/43606451482/attempts/1",
+    "commit": "ff6f7c437655a59c1ee96cce89d47a5fed253ef3",
     "fixture_id": "baseline",
     "cache_mode": "cold",
     "benchmark_role": "measurement",
     "scan_execution_mode": "parallel",
     "runner_os": "Linux",
     "runner_arch": "X64",
-    "scan_stage_started_at": "2026-11-14T13:28:35Z",
-    "scan_stage_ended_at": "2026-11-14T13:30:32Z",
+    "scan_stage_started_at": "2026-11-14T14:44:49Z",
+    "scan_stage_ended_at": "2026-11-14T14:46:44Z",
     "job_durations_seconds": {
-      "iac": 34,
-      "image": 117,
-      "security-scan": 30
+      "iac": 41,
+      "image": 114,
+      "security-scan": 29
     },
-    "scan_stage_runner_minutes": 3.017,
-    "parallel_scan_stage_critical_path_seconds": 117,
-    "serial_sum_estimate_seconds": 181,
+    "scan_stage_runner_minutes": 3.067,
+    "parallel_scan_stage_critical_path_seconds": 114,
+    "serial_sum_estimate_seconds": 184,
     "interpretation": "Observed timings for three scanner jobs in one workflow run. The max is their parallel critical-path estimate; the sum is a serial-work estimate, not a measured serial run. Repeated runs and cache-on/off comparison are still required."
   },
   "e4": {
@@ -283,11 +321,48 @@
     "interpretation": "Not an E4 before/after measurement."
   },
   "experiment_limits": [
-    "Only one baseline observation; no live D/C/N matrix.",
-    "E1/E2 policy replay artifacts are not live scanner detection metrics.",
-    "E3 lacks repeated cold/warm runs on the same commit.",
-    "This artifact predates the local aggregated IaC warning policy."
+    "Only the baseline fixture was observed; no live D/C/N matrix.",
+    "E1/E2 policy comparison is not present in this push observation.",
+    "E3 has one cold measurement, not repeated cold/warm runs.",
+    "E4 was not requested; scan and release image references remain different."
   ],
+  "raw_report_checksums": {
+    "semgrep.json": {
+      "present": true,
+      "size_bytes": 1724,
+      "sha256": "3d33e5f1113723ea83187df61a200e1fae9c10e87c29a547498dee90052dfc86"
+    },
+    "gitleaks.json": {
+      "present": true,
+      "size_bytes": 3,
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+    },
+    "trivy.json": {
+      "present": true,
+      "size_bytes": 3384,
+      "sha256": "58200c94cf49f308c7f2507c1e9b69714488ef4c6353994ef5cffc00a37791c9"
+    },
+    "checkov.json": {
+      "present": true,
+      "size_bytes": 1055269,
+      "sha256": "41aa37e02bf8623893a90ef0ea830d104fd621cc10f8da2672b3b9496b6749a2"
+    },
+    "checkov.stream.json": {
+      "present": true,
+      "size_bytes": 1340417,
+      "sha256": "676af3bd46495d39ec544ac781877ee552054688a6505b35fec67172750a8d58"
+    },
+    "trivy-config.json": {
+      "present": true,
+      "size_bytes": 45671,
+      "sha256": "e7fdd63bd5fdf1001187bf5a1784d5ce25622b7a5a41b24cd58161d4c6ef1180"
+    },
+    "grype-image.json": {
+      "present": true,
+      "size_bytes": 940798,
+      "sha256": "ec4da0a787c84645666039ecf9c35b882e70014cb2c4cc7adfdcd4cea105ab3a"
+    }
+  },
   "artifact_sources": [
     "D:\\Downloads\\experiment-baseline\\experiment\\observation.json",
     "D:\\Downloads\\report-gate\\gate_report.json",
