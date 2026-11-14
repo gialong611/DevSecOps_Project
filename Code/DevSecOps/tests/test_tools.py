@@ -141,10 +141,16 @@ TRIVY_CONFIG = {
             "Misconfigurations": [
                 {
                     "ID": "KSV-0109",
-                    "Status": "FAILED",
+                    "Status": "FAIL",
                     "Severity": "HIGH",
                     "Title": "Secret in ConfigMap",
                     "References": ["https://avd.aquasec.com/ksv-0109"],
+                },
+                {
+                    "ID": "KSV-0111",
+                    "Status": "FAILED",
+                    "Severity": "CRITICAL",
+                    "Title": "Cluster-admin binding",
                 },
                 {
                     "ID": "KSV-0001",
@@ -159,12 +165,14 @@ TRIVY_CONFIG = {
 
 def test_parse_trivy_config_only_failed():
     findings = nf.parse_trivy_config(TRIVY_CONFIG)
-    assert len(findings) == 1
+    assert len(findings) == 2
     f = findings[0]
     assert f["rule_id"] == "KSV-0109"
     assert f["category"] == "k8s"
     assert f["severity"] == "HIGH"
     assert f["tool"] == "trivy"
+    assert findings[1]["rule_id"] == "KSV-0111"
+    assert findings[1]["severity"] == "CRITICAL"
 
 
 def test_parse_trivy_config_none():
@@ -249,9 +257,18 @@ def test_enrich_kev_and_epss():
 def test_enrich_confidence_iac_control():
     kev_ids = set()
     epss_map = {}
-    f = {"rule_id": "CKV_AWS_24", "category": "iac", "severity": "HIGH", "file": "a.tf"}
-    out = ef.enrich(f, kev_ids, epss_map)
-    assert out["match_confidence"] == "high"
+    g2_policy = (TESTS_DIR.parent / "policy" / "g2" / "gate.rego").read_text(encoding="utf-8")
+    controls = (
+        ("CKV_AWS_24", "HIGH"),
+        ("CKV_AWS_382", "HIGH"),
+        ("AWS-0104", "CRITICAL"),
+    )
+    for rule_id, severity in controls:
+        f = {"rule_id": rule_id, "category": "iac", "severity": severity, "file": "a.tf"}
+        out = ef.enrich(f, kev_ids, epss_map)
+        assert out["match_confidence"] == "high"
+        assert rule_id in ef.IAC_BLOCK_CONTROLS
+        assert f'"{rule_id}"' in g2_policy
     f2 = {"rule_id": "CKV_AWS_21", "category": "iac", "severity": "MEDIUM", "file": "a.tf"}
     assert ef.enrich(f2, kev_ids, epss_map)["match_confidence"] == "low"
 

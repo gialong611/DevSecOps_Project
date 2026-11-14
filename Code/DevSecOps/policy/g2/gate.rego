@@ -12,6 +12,7 @@ iac_block_controls := {
 	"CKV_AWS_53", "CKV_AWS_54", "CKV_AWS_55", "CKV_AWS_56", # S3 public
 	"CKV_AWS_17", # RDS public
 	"CKV_AWS_16", # RDS chưa mã hóa
+	"CKV_AWS_382", "AWS-0104", # security group unrestricted egress (Checkov / Trivy)
 	"CKV_DOCKER_1", "CKV_DOCKER_3", "CKV_DOCKER_4", "CKV_DOCKER_7", # base image/root/ADD/sshd
 	"CKV_K8S_16", # privileged
 	"CKV_K8S_14", # image không ghim digest

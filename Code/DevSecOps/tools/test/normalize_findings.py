@@ -564,9 +564,12 @@ def parse_trivy_config(data):
                     f"result {result_index}, index {index} must be an object."
                 )
 
-            # Chỉ lấy mục FAILED; PASSED/SKIPPED không phải phát hiện.
+            # Chỉ lấy mục FAIL/FAILED; PASS/PASSED/SKIPPED không phải phát hiện.
             status = (item.get("Status") or "").upper()
-            if status and status != "FAILED":
+            # Trivy config uses "FAIL"; "FAILED" is accepted for older or
+            # normalized reports. Without both spellings, real findings are
+            # silently omitted from the gate input.
+            if status and status not in {"FAIL", "FAILED"}:
                 continue
 
             rule_id = item.get("ID")

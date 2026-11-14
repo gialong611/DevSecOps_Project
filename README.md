@@ -87,15 +87,12 @@ Xem bảng tự đánh giá và việc còn thiếu tại `PROJECT_COMPLETION.md
 
 ### Trạng thái bằng chứng hiện tại
 
-- Run GitHub Actions mới nhất đã biết là [run #14](https://github.com/gialong611/DevSecOps_Project/actions/runs/41324476069), commit
-  `3eed4d8dc9035af4498d8805c8f48876f04ea656`; các job CI chính thành công.
-  Metadata artifact đã được kiểm tra; nội dung ZIP chưa trích được vào workspace,
-  vì vậy chưa công bố số liệu mới từ lượt này.
-- Các thư mục `D:\Downloads\report-* (1)` và `D:\Downloads\sbom` hiện có là
-  run #13, không phải #14: observation ghi run ID `41288998886`, commit
-  `cbcef8e32d5b007229be5e424409e8ee00fe278e` và schema v2.
-- Artifact `report-scan` của run #14 hết hạn `2026-11-15 16:05:51 UTC`; tải
-  trước hạn để giữ được raw report.
+- Artifact mới nhất đã đọc là [run #43572212518](https://github.com/gialong611/DevSecOps_Project/actions/runs/43572212518/attempts/1), commit `852196ca45ad7275cccd6cbdc6f05de2dc2a4a93`, `push` trên `main`, fixture `baseline`.
+- Gate của run này trả `WARN` nhưng pass: **296 finding chuẩn hóa, 0 blocker, 19 warning**. Có 17 cảnh báo HIGH chưa có bản vá và 2 MEDIUM có bản vá; 19/19 warning được liên kết tới finding nguồn. Đây không phải kết quả của log fail có 3 blocker đã gửi trước đó.
+- Run chỉ đo baseline cold một lần: security-scan 25 giây, IaC 52 giây, image 87 giây; đường găng scan song song 87 giây, tổng runner 2,733 phút. E4 không được yêu cầu; run là `push`, không chứng minh PR block/pass.
+- Artifact `report-iac` có 16 cấu hình Trivy trạng thái `FAIL` (3 CRITICAL, 2 HIGH, 6 MEDIUM, 5 LOW), nhưng normalizer cũ chỉ nhận trạng thái `FAILED`, nên các mục này bị bỏ khỏi gate. Working tree hiện đã nhận cả hai cách viết; Trivy quét IaC lại sau khi siết egress còn 11 mục và không còn `AWS-0104`. Cần CI mới để xác nhận gate sau sửa.
+- Hai SBOM đều có 2.856 thành phần giống nhau; SBOM phát hành ghi digest GHCR, còn SBOM của image scan gắn tag cục bộ. Nên nối báo cáo quét với digest phát hành trong lần cải thiện tiếp theo.
+- Các thư mục run #13 và #14 bên dưới là bằng chứng lịch sử; không dùng chúng thay cho run #435722 hoặc các lượt lặp thực nghiệm.
 - Các số 275 findings, 30 warnings, delta image/SBOM và một lượt timing ở trên
   thuộc run #13; chúng là dữ liệu lịch sử, không phải kết quả đo hiện tại hay
   nhiều lần lặp.
@@ -104,7 +101,7 @@ Xem bảng tự đánh giá và việc còn thiếu tại `PROJECT_COMPLETION.md
   false-positive rate hoặc hiệu quả cache ngoài dữ liệu quan sát CI.
 - Workflow và script đang được hoàn thiện để thu thập từng fixture D01–D28,
   C01–C10, N01–N08, đo E3 cold/warm lặp lại, và kiểm tra E4 bằng cùng DB
-  snapshot. Thay đổi local chưa được xác nhận bởi GitHub Actions.
+  snapshot. Các thay đổi parser, policy và egress hiện tại chưa được xác nhận bởi GitHub Actions.
 - Sau khi có artifact mới và số liệu được kiểm tra, cập nhật DOCX. PPTX được giữ
   nguyên theo phạm vi đã thống nhất.
 

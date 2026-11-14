@@ -30,6 +30,14 @@ test_g2_block_iac_ssh_world if {
 	count(deny) > 0 with input as base([{"category": "iac", "rule_id": "CKV_AWS_24", "severity": "HIGH", "location": {"resource": "aws_security_group.x"}}])
 }
 
+test_g2_block_unrestricted_egress_checkov if {
+	count(deny) > 0 with input as base([{"category": "iac", "rule_id": "CKV_AWS_382", "severity": "HIGH", "location": {"resource": "aws_security_group.x"}}])
+}
+
+test_g2_block_unrestricted_egress_trivy if {
+	count(deny) > 0 with input as base([{"category": "iac", "rule_id": "AWS-0104", "severity": "CRITICAL", "location": {"resource": "aws_security_group.x"}}])
+}
+
 test_g2_warn_tier_iac_logging_not_block if {
 	count(deny) == 0 with input as base([{"category": "iac", "rule_id": "CKV_AWS_18", "severity": "LOW", "location": {"resource": "aws_s3_bucket.x"}}])
 }
@@ -51,7 +59,7 @@ test_g2_sast_low_not_block if {
 }
 
 test_g2_clean_passes if {
-	count(deny) == 0 with input as base([{"category": "iac", "rule_id": "CKV_DOCKER_3", "severity": "LOW", "location": {"file": "Dockerfile"}}])
+	count(deny) == 0 with input as base([{"category": "iac", "rule_id": "CKV_AWS_21", "severity": "LOW", "location": {"file": "infra/s3.tf"}}])
 }
 
 test_g2_valid_exception_excuses if {

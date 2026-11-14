@@ -453,6 +453,12 @@ jobs:
           sudo install conftest /usr/local/bin/conftest
           conftest --version
 
+      - name: Kiểm thử unit policy G0/G1/G2
+        run: |
+          for policy in g0 g1 g2; do
+            conftest verify -p "policy/${policy}"
+          done
+
       - name: Chuẩn hóa findings (schema bắt buộc, fail-closed)
         run: |
           python tools/test/normalize_findings.py \
