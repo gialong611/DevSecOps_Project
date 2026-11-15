@@ -1,4 +1,8 @@
-# Bằng chứng thí nghiệm live – 2026-11-15
+# Bằng chứng thí nghiệm live – 2026-11-15 (đã được thay thế)
+
+Đây là gói tổng hợp lịch sử, không còn là bộ số liệu hiện hành. Dùng bộ mới tại
+[`live-evidence-2026-11-16`](../live-evidence-2026-11-16/README.md) khi trích dẫn
+kết quả E1–E4 hoặc trạng thái required checks.
 
 Thư mục này giữ bản tổng hợp nhỏ, có thể xem trực tiếp trên GitHub. Các báo cáo
 được tính từ observation và raw scanner report của GitHub Actions; không dùng

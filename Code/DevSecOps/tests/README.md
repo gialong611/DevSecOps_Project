@@ -34,44 +34,55 @@ Các kết quả dưới đây được tính từ raw scanner reports và obser
 Actions, không dùng `findings.csv`, `decisions.csv` hay `runs.csv` làm thay dữ liệu
 phát hiện.
 
-| Đo lường | Kết quả |
+| Đo lường | Kết quả live mới nhất |
 |---|---|
-| E1 – D/C/N | 38/38 fixture D/C và 8/8 N hoàn tất; scanner phát hiện 28/28 lỗi D; 0/10 C có finding mới; 0/8 N có false positive theo rule đích |
-| E2 – G1 | TP/FN/FP/TN = 28/0/0/10; block recall D 100%; false-block C 0%; block khớp rule đích 27/28; G1 chặn nhầm 1/8 N |
-| E2 – G2 | TP/FN/FP/TN = 23/0/0/15; block recall D 100%; false-block C 0%; block khớp rule đích 22/23; G2 chặn 0/8 N |
-| E3 – cold/warm | Mỗi profile N=5, cùng commit và cùng snapshot Trivy/Grype. Wall median 104s/110s, IQR 4s/6s; scan stage 88s/90s; tổng runner-minutes median 3.17/3.25 |
-| E4 – image/SBOM | 4.486 → 206 finding; 18 → 0 CRITICAL; SBOM 22.943 → 2.856 gói. Cùng Python 3.13.18, Debian 13.7, amd64, Trivy 0.76.1 và DB snapshot per-scan |
+| E1 – D/C/N | 38/38 fixture D/C và 8/8 N hoàn tất; scanner phát hiện 28/28 lỗi D; 0/10 C có finding mới; 0/8 N có finding mới theo rule đích. |
+| E2 – G1 | TP/FN/FP/TN = 28/0/0/10; block recall 28/28 trường hợp kỳ vọng BLOCK; blocker khớp rule đích 27/28; false-block C 0/10, N 1/8. |
+| E2 – G2 | TP/FN/FP/TN = 23/0/0/15; block recall 23/23 trường hợp kỳ vọng BLOCK; blocker khớp rule đích 22/23; false-block C 0/10, N 0/8. Năm lỗi D còn lại được policy xếp WARN. |
+| E2 – G0 | Không có trường hợp kỳ vọng BLOCK nên recall không áp dụng; 0/8 negative control bị chặn. |
+| E3 – cold/warm | Mỗi profile N=5, cùng commit và snapshot Trivy/Grype. Wall median 111s/125s, IQR 3s/10s, p90 115,8s/126,6s; scan stage 87s/97s; tổng runner-minutes median 3,45/3,63. |
+| E4 – image/SBOM | 4.486 → 206 bản ghi Trivy; 18 → 0 CRITICAL; SBOM 22.943 → 2.856 thành phần. Cùng Python 3.13.18, Debian 13.7, amd64, Trivy 0.76.1 và DB snapshot. |
 
-E1/E2 có 2 baseline ghép theo SHA để bao phủ 38 D/C và 8 N. Gate hành động
-đúng kỳ vọng 38/38; tuy nhiên có blocker trùng mức release nhưng không khớp
-rule/CVE mục tiêu (G1 27/28, G2 22/23). E3 dùng pip cache là biến độc lập;
-warm chậm hơn median 6 giây (5,77%), chưa thấy lợi ích tốc độ trong cấu hình đo.
-E4 có config digest và Dockerfile SHA-256 cục bộ, chưa có manifest digest registry;
-kết luận áp dụng cho toàn bộ thay đổi Dockerfile/image, không tách riêng từng package.
+E1/E2 có 47 observation nguồn: một baseline và 46 fixture D/C/N, cùng commit
+`135606475be9d66842121135631d853a63c1e480`. Kết quả được tính từ raw report và
+finding mới so với baseline; không lấy `decisions.csv` làm dữ liệu phát hiện.
+G1 chặn mọi lỗi được kỳ vọng BLOCK; G2 chặn 23 trường hợp kỳ vọng BLOCK và cảnh
+báo 5 lỗi ở mức WARN. G1 chặn 1/8 negative control trong khi G2 chặn 0/8.
 
-Chi tiết E1/E2, E3 và E4 được tổng hợp trong
-`tests/results/metrics/live-evidence-2026-11-15/`. JSON E1/E2 lưu run URL và
-hash cho từng observation; manifest portable lưu 48 nguồn. JSON E3 lưu 10 run ID,
-tool/database snapshot và timing theo job. Các raw report đầy đủ vẫn nằm trong
-artifact của từng run GitHub Actions. E3 được ghi tại
-[run 43720462402](https://github.com/gialong611/DevSecOps_Project/actions/runs/43720462402)
-đến [run 43722229167](https://github.com/gialong611/DevSecOps_Project/actions/runs/43722229167);
-E4 tại [run 43723320787](https://github.com/gialong611/DevSecOps_Project/actions/runs/43723320787/attempts/1).
+E3 warm chậm hơn median 14 giây (12,61%) trong mẫu đo. Chỉ pip cache thay đổi;
+scanner jobs vẫn chạy song song. E4 có config digest và Dockerfile SHA-256 cục
+bộ nhưng chưa có manifest digest registry; kết luận áp dụng cho toàn bộ thay đổi
+Dockerfile/image, không tách riêng từng package. Số CRITICAL `18 → 0` lấy từ cặp
+raw report before/after của cùng run E4.
+
+Chi tiết hiện hành nằm tại
+`tests/results/metrics/live-evidence-2026-11-16/`. Manifest E1/E2 lưu run URL,
+commit, SHA-256 observation/raw report, tool versions và DB snapshot; JSON E3 lưu
+10 run ID cùng thống kê và thời gian từng job; JSON E4 lưu raw report hashes và
+metadata so sánh. Các raw report đầy đủ nằm trong artifact của từng run GitHub
+Actions và tuân theo thời hạn lưu artifact. Xem
+[E1/E2](results/metrics/live-evidence-2026-11-16/e1_e2_live_observations.md),
+[E3](results/metrics/live-evidence-2026-11-16/e3_live_cache_comparison.md),
+[E4](results/metrics/live-evidence-2026-11-16/e4_image_remediation.md) và
+[bằng chứng PR/ruleset](results/metrics/live-evidence-2026-11-16/PR_GATE_EVIDENCE.md).
+
+Các tệp `e1_g0_metrics.json`, `e1_g1_metrics.json`, `e1_g2_metrics.json` và
+`e2_policy_comparison.json` ở thư mục `results/metrics/` là policy replay thăm
+dò từ `decisions.csv`; chúng được giữ để đối chiếu lịch sử, không thay cho kết
+quả live trong gói ngày 2026-11-16.
 
 ### Giới hạn cần giữ rõ trong báo cáo
 
-- Các lượt baseline G2 bị BLOCK do finding Gitleaks trong lịch sử repo; các lượt E3
-  chỉ được nhận nếu tests, DB và scanners đều thành công và G2 là job duy nhất BLOCK.
-  Cần chủ repo xác minh/thu hồi secret nếu còn hiệu lực và xử lý lịch sử; không đưa
-  giá trị secret vào tài liệu.
+- E3 sử dụng 5 cold và 5 warm run thành công; một lượt warm-up được loại khỏi thống kê.
+  Một số baseline có `WARN`, nhưng không có baseline nào bị G2 `BLOCK` trong nhóm đo.
 - PR #1 có lượt thử block/pass có kiểm soát: D01 SQL injection bị gate G2 chặn
   tại [run 43729980295](https://github.com/gialong611/DevSecOps_Project/actions/runs/43729980295);
   sau khi hoàn nguyên fixture, [run 43730231762](https://github.com/gialong611/DevSecOps_Project/actions/runs/43730231762)
-  pass. Xem `tests/results/metrics/live-evidence-2026-11-15/PR_GATE_EVIDENCE.md`.
-- `main` chưa có branch protection/ruleset và PR chưa có required check. Bằng
-  chứng này xác nhận hành vi gate trên PR, chưa chứng minh GitHub ngăn merge theo
-  required status check. Repo admin cần yêu cầu `Run Python tests` và
-  `gate (Conftest Rego)` trên `main`.
+  pass. Xem `tests/results/metrics/live-evidence-2026-11-16/PR_GATE_EVIDENCE.md`.
+- Ruleset `Protect main` đang active, yêu cầu PR và sáu check: DB snapshots,
+  Python tests, security scans, IaC, image và gate. PR #1 merge trước thời điểm
+  bật ruleset; cần PR tiếp theo để chứng minh ruleset chặn merge thật. Cấu hình
+  chi tiết có trong `PR_GATE_EVIDENCE.md`.
 - T0 KEV/EPSS trong E4 là mô phỏng, không phải snapshot lịch sử CISA/FIRST.
 - Observation schema v6 tại `schemas/scan-observation.schema.json` lưu run URL,
   commit, tool versions, timing, cache profile, report SHA-256, quyết định G0/G1/G2
@@ -109,8 +120,9 @@ vẫn bị loại. E3 đo pip cache trong khi scanner jobs vẫn chạy song son
 diễn giải như so sánh tuần tự.
 
 Sau study, kiểm tra JSON/Markdown tổng hợp, URL từng case trong `run-index.json`
-và hash artifact trước khi cập nhật báo cáo. DOCX/PPTX không thuộc phạm vi cập
-nhật của bản code này.
+và hash artifact trước khi cập nhật báo cáo. Bộ dữ liệu Markdown/JSON hiện hành
+đã được lưu trong repo; PPTX giữ nguyên. Báo cáo DOCX là tài liệu riêng cần đồng
+bộ nội dung với bộ số liệu mới trước khi phát hành.
 
 ### Phân tích artifact E4 đã tải
 

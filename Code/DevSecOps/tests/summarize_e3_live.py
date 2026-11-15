@@ -170,13 +170,20 @@ def build_report(index, index_path):
         job_names = sorted({name for r in records for name in (r.get("job_durations_seconds") or {})})
         per_job = {}
         for name in job_names:
-            values = [
-                r["job_durations_seconds"][name]
-                for r in records
-                if isinstance(r.get("job_durations_seconds"), dict)
-                and isinstance(r["job_durations_seconds"].get(name), (int, float))
-            ]
-            per_job[name] = stats(values)
+            values = []
+            skipped_runs = 0
+            for run in records:
+                conclusion = (run.get("job_conclusions") or {}).get(name)
+                duration = (run.get("job_durations_seconds") or {}).get(name)
+                if conclusion == "skipped":
+                    skipped_runs += 1
+                elif isinstance(duration, (int, float)):
+                    values.append(duration)
+            per_job[name] = {
+                **stats(values),
+                "total_runs": len(records),
+                "skipped_runs": skipped_runs,
+            }
         commits = sorted({r.get("head_sha") for r in records if r.get("head_sha")})
         version_sets = {
             json.dumps(r["observation"].get("tool_versions_configured", {}), sort_keys=True)
@@ -343,24 +350,30 @@ def markdown(report):
         "",
         f"**Trạng thái bằng chứng:** `{report['evidence_status']}`",
         "",
-        "| Cache pip | N hợp lệ | Lượt G2 chặn baseline | Wall median (s) | Wall IQR (s) | Wall p90 (s) | Scan stage median (s) | Scan runner-minutes median |",
-        "|---|---:|---:|---:|---:|---:|---:|---:|",
+        "| Cache pip | N hợp lệ | Lượt G2 chặn baseline | Wall median (s) | Wall IQR (s) | Wall p90 (s) | Tổng runner-minutes median | Scan stage median (s) | Scan runner-minutes median |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for mode in ("cold", "warm"):
         profile = report["profiles"][mode]
         wall = profile["workflow_wall_seconds"]
+        runner = profile["workflow_runner_minutes"]
         scan = profile["scan_stage_wall_seconds"]
         minutes = profile["scan_stage_runner_minutes"]
         fmt = lambda value, suffix="": "chưa đo" if value is None else f"{value}{suffix}"
         lines.append(
             f"| {mode} | {profile['N']} | {profile['expected_baseline_gate_block_runs']} | "
             f"{fmt(wall['median'])} | {fmt(wall['iqr'])} | "
-            f"{fmt(wall['p90'])} | {fmt(scan['median'])} | {fmt(minutes['median'])} |"
+            f"{fmt(wall['p90'])} | {fmt(runner['median'])} | {fmt(scan['median'])} | {fmt(minutes['median'])} |"
         )
-    lines.extend(["", "## Thời gian từng job", "", "| Cache | Job | N | Median (s) | IQR (s) | p90 (s) |", "|---|---|---:|---:|---:|---:|"])
+    lines.extend(["", "## Thời gian từng job", "", "| Cache | Job | N đo được | Median (s) | IQR (s) | p90 (s) |", "|---|---|---:|---:|---:|---:|"])
     for mode in ("cold", "warm"):
         for name, value in report["profiles"][mode]["per_job_seconds"].items():
-            lines.append(f"| {mode} | {name} | {value['N']} | {value['median']} | {value['iqr']} | {value['p90']} |")
+            entirely_skipped = value["N"] == 0 and value["skipped_runs"] == value["total_runs"]
+            if entirely_skipped:
+                lines.append(f"| {mode} | {name} (skipped) | — | — | — | — |")
+            else:
+                label = f"{name} (skipped {value['skipped_runs']}/{value['total_runs']})" if value["skipped_runs"] else name
+                lines.append(f"| {mode} | {label} | {value['N']} | {value['median']} | {value['iqr']} | {value['p90']} |")
     comparison = report.get("cache_comparison")
     lines.extend(["", "## So sánh cache", ""])
     if comparison:

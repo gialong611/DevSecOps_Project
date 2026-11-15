@@ -33,23 +33,22 @@ Số quyết định thay đổi giữa tín hiệu T0 mô phỏng và tập T1 
 
 | Chỉ số | Trước | Sau | Delta |
 |---|---:|---:|---:|
-| Gói trong SBOM | 22921 | 2860 | -20061 |
-| Lỗ hổng CRITICAL | 21 | 0 | -21 |
-| Lỗ hổng HIGH | 531 | 52 | -479 |
-| Lỗ hổng MEDIUM | 2037 | 71 | -1966 |
-| Lỗ hổng LOW | 2030 | 64 | -1966 |
-| Lỗ hổng UNKNOWN | 102 | 1 | -101 |
-| Tổng lỗ hổng | 4721 | 188 | -4533 |
+| Gói trong SBOM | 22943 | 2856 | -20087 |
+| Lỗ hổng CRITICAL | 18 | 0 | -18 |
+| Lỗ hổng HIGH | 804 | 47 | -757 |
+| Lỗ hổng MEDIUM | 1746 | 89 | -1657 |
+| Lỗ hổng LOW | 1819 | 65 | -1754 |
+| Lỗ hổng UNKNOWN | 99 | 5 | -94 |
+| Tổng lỗ hổng | 4486 | 206 | -4280 |
 
 ### Nhận dạng image và tính so sánh
 
-- before: image ID `sha256:5310731d113763ab98be5751527dbea9ccae7fbbc03b5a6927ac95e0a25fc1f2`, Python `3.12.15`, OS `{'Family': 'debian', 'Name': '13.7'}`, architecture `amd64`.
-- after: image ID `sha256:c99a5a371e35e898fffb680ccb384c9132bf7965db403e47cc0d78a257f639fa`, Python `3.12.16`, OS `{'Family': 'debian', 'Name': '13.7'}`, architecture `amd64`.
-- Trạng thái E4 live: **limited**; được phép quy kết delta cho thay đổi Dockerfile: **False**.
-- Cùng phiên bản Python: **False**; cùng OS: **True**; cùng architecture: **True**; cùng Trivy DB snapshot đã xác minh theo từng lần quét: **False**; snapshot mức job đã ghi: **True**.
-- Yếu tố khác nhau cần ghi nhận: Python version `3.12.15` → `3.12.16`.
-- CI run: `41288998886`.
-- `before` config digest: `sha256:5310731d113763ab98be5751527dbea9ccae7fbbc03b5a6927ac95e0a25fc1f2`; manifest digest trên registry: `chưa có`; Dockerfile SHA-256: `không có`.
-- `after` config digest: `sha256:c99a5a371e35e898fffb680ccb384c9132bf7965db403e47cc0d78a257f639fa`; manifest digest trên registry: `chưa có`; Dockerfile SHA-256: `không có`.
-- Trivy vulnerability DB cập nhật: `2026-11-01 07:08:40.846369079 +0000 UTC`.
+- before: image ID `sha256:f1cfb59eb412a73669278891d1072bcc4d7fe92a8096bc98525bb951e6a7f83e`, Python `3.13.18`, OS `{'Family': 'debian', 'Name': '13.7'}`, architecture `amd64`.
+- after: image ID `sha256:ed6c553e3778250b60d99db0b8f5313effe279d7b68f0a9419b339eab71cd02e`, Python `3.13.18`, OS `{'Family': 'debian', 'Name': '13.7'}`, architecture `amd64`.
+- Trạng thái E4 live: **comparable**; được phép quy kết delta cho thay đổi Dockerfile: **True**.
+- Cùng phiên bản Python: **True**; cùng OS: **True**; cùng architecture: **True**; cùng Trivy DB snapshot đã xác minh theo từng lần quét: **True**; snapshot mức job đã ghi: **True**.
+- CI run: `43743317883`.
+- `before` config digest: `sha256:f1cfb59eb412a73669278891d1072bcc4d7fe92a8096bc98525bb951e6a7f83e`; manifest digest trên registry: `chưa có`; Dockerfile SHA-256: `23916a54ea387c265f15656dc5f096440a4ec46a660115a64535077ec9c47e7a`.
+- `after` config digest: `sha256:ed6c553e3778250b60d99db0b8f5313effe279d7b68f0a9419b339eab71cd02e`; manifest digest trên registry: `chưa có`; Dockerfile SHA-256: `fbea0553770e056681e46be7978b77440a1a44addc26733b786de9c89ef97d04`.
+- Trivy vulnerability DB cập nhật: `2026-11-15 12:50:30.599818283 +0000 UTC`.
 

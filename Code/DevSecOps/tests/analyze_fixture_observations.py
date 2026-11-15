@@ -672,7 +672,13 @@ def main() -> int:
         recall = metric["recall_blocked_defects"]
         false_block = metric["false_block_rate_on_measured_clean"]
         aligned = metric["action_alignment_rate"]
-        recall_text = f"{recall:.2%}" if recall is not None else "chưa đủ dữ liệu"
+        recall_text = (
+            f"{recall:.2%}"
+            if recall is not None
+            else "không áp dụng (G0 không có mẫu kỳ vọng BLOCK)"
+            if policy == "g0"
+            else "chưa đủ dữ liệu"
+        )
         aligned_text = f"{aligned:.2%}" if aligned is not None else "chưa đủ dữ liệu"
         false_block_text = (
             f"{false_block:.2%}" if false_block is not None else "chưa đủ dữ liệu"
