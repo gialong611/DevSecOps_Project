@@ -64,8 +64,14 @@ E4 tại [run 43723320787](https://github.com/gialong611/DevSecOps_Project/actio
   chỉ được nhận nếu tests, DB và scanners đều thành công và G2 là job duy nhất BLOCK.
   Cần chủ repo xác minh/thu hồi secret nếu còn hiệu lực và xử lý lịch sử; không đưa
   giá trị secret vào tài liệu.
-- `main` chưa có branch protection/ruleset tại thời điểm kiểm tra. Vì vậy chưa có
-  bằng chứng PR thật bị required check chặn rồi qua sau khi sửa.
+- PR #1 có lượt thử block/pass có kiểm soát: D01 SQL injection bị gate G2 chặn
+  tại [run 43729980295](https://github.com/gialong611/DevSecOps_Project/actions/runs/43729980295);
+  sau khi hoàn nguyên fixture, [run 43730231762](https://github.com/gialong611/DevSecOps_Project/actions/runs/43730231762)
+  pass. Xem `tests/results/metrics/live-evidence-2026-11-15/PR_GATE_EVIDENCE.md`.
+- `main` chưa có branch protection/ruleset và PR chưa có required check. Bằng
+  chứng này xác nhận hành vi gate trên PR, chưa chứng minh GitHub ngăn merge theo
+  required status check. Repo admin cần yêu cầu `Run Python tests` và
+  `gate (Conftest Rego)` trên `main`.
 - T0 KEV/EPSS trong E4 là mô phỏng, không phải snapshot lịch sử CISA/FIRST.
 - Observation schema v6 tại `schemas/scan-observation.schema.json` lưu run URL,
   commit, tool versions, timing, cache profile, report SHA-256, quyết định G0/G1/G2

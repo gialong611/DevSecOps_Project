@@ -36,9 +36,15 @@ theo từng lượt được giữ trong artifact GitHub Actions của các run 
   trạng thái gate không bị che giấu. Chủ repo cần xác minh, thu hồi credential nếu
   còn hiệu lực và xử lý lịch sử trước khi coi baseline là sạch. Không đưa giá trị
   secret vào báo cáo.
-- GitHub hiện chưa có branch protection/ruleset cho `main` (API protection trả
-  404 và danh sách rulesets rỗng tại thời điểm kiểm tra). Do đó chưa có bằng chứng
-  PR lỗi bị required check chặn, PR đã sửa được merge, hay check bắt buộc trước merge.
+- PR #1 đã có lượt gate block/pass có kiểm soát: commit gieo D01 bị G2 chặn ở
+  [run 43729980295](https://github.com/gialong611/DevSecOps_Project/actions/runs/43729980295);
+  sau khi hoàn nguyên lỗi, [run 43730231762](https://github.com/gialong611/DevSecOps_Project/actions/runs/43730231762)
+  pass. Mã cuối trên nhánh không còn lỗi SQL injection.
+- `main` vẫn chưa có branch protection/ruleset. `gh pr checks --required` báo
+  chưa có required check; API protection trả 404, ruleset không có kết quả. Tài
+  khoản hiện tại có quyền push nhưng `admin=false`, nên chưa thể cấu hình bảo vệ
+  nhánh. Hai run trên chứng minh gate chạy trên PR và block lỗi; chúng chưa chứng
+  minh GitHub bắt buộc check trước khi merge.
 - T0 KEV/EPSS trong E4 vẫn là mô phỏng; không trình bày như dữ liệu lịch sử CISA/FIRST.
   Chưa có registry digest nên không khẳng định cùng một image đã publish.
 
@@ -73,8 +79,8 @@ là `true`.
 
 ## Việc còn lại để khép đề tài
 
-1. Xử lý finding Gitleaks lịch sử một cách an toàn; chạy baseline sạch sau xử lý.
-2. Bật branch protection/ruleset trên `main` với Python tests và gate là required checks.
-3. Tạo PR chứa lỗi nghiêm trọng để xác nhận bị chặn, rồi PR đã sửa để xác nhận qua.
-4. Nếu cần bằng chứng cho artifact phát hành, push image theo digest cố định và
+1. Nhờ repo admin bật branch protection/ruleset trên `main`, yêu cầu đúng hai check
+   `Run Python tests` và `gate (Conftest Rego)`; sau đó xác minh bằng PR.
+2. Xử lý finding Gitleaks lịch sử một cách an toàn; chạy baseline sạch sau xử lý.
+3. Nếu cần bằng chứng cho artifact phát hành, push image theo digest cố định và
    liên kết digest đó với SBOM, scan report và provenance.
