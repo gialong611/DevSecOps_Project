@@ -40,7 +40,7 @@ Pipeline chạy quá 10 phút.
 - Các số liệu run #13/#14 nêu ở hồ sơ cũ là lịch sử. `findings.csv`, `decisions.csv` và `runs.csv` vẫn là dữ liệu thiết kế/thăm dò; chúng không chứng minh scanner đã phát hiện lỗi theo từng fixture.
 - D/C/N live matrix, E3 đủ 5 cold + 5 warm, PR block/pass và branch protection vẫn chưa có bằng chứng hoàn chỉnh.
 - E4 T0 KEV/EPSS là mô phỏng. Chỉ được gọi là live khi có hai báo cáo Trivy, hai SBOM Syft, tool version, Python/OS/architecture và snapshot vulnerability DB xác nhận giống nhau; nếu không, báo `limited`/`incomplete` và không quy kết delta.
-- Observation schema tại `schemas/scan-observation.schema.json` ghi run URL, commit, phiên bản tool, timing, cache profile, raw report SHA-256, quyết định G0/G1/G2 và trạng thái E4 riêng. Observation E1–E3 không bị đánh `partial` chỉ vì E4 được chủ động bỏ qua.
+- Observation schema v6 tại `schemas/scan-observation.schema.json` ghi run URL, commit, phiên bản tool, timing, cache profile, raw report SHA-256, quyết định G0/G1/G2 và trạng thái E4 riêng; provenance gồm snapshot ID/metadata của cả Trivy và Grype. Observation E1–E3 không bị đánh `partial` chỉ vì E4 được chủ động bỏ qua.
 
 ### Thu thập lại fixture D/C/N và E3
 
@@ -51,7 +51,7 @@ từng run, ghi URL/run ID/job timing, và hỗ trợ tiếp tục bằng `--res
 
 ```bash
 # Baseline + 28 D + 10 C + 8 N, sau đó tạo báo cáo live E1/E2.
-python tests/run_fixture_matrix.py --ref main --out-dir tests/results/live-study
+python tests/run_fixture_matrix.py --ref main --out-dir tests/results/live-study --parallelism 4
 
 # Ít nhất 5 lượt mỗi profile; chạy warm-up trước và loại khỏi thống kê.
 python tests/run_fixture_matrix.py --ref main --skip-fixtures \
@@ -64,11 +64,12 @@ python tests/run_fixture_matrix.py --ref main --skip-fixtures \
   --out-dir tests/results/e3-live --resume
 ```
 
-Fixture matrix mặc định gồm 47 lượt (baseline + 46 mẫu); E3 thêm 11 lượt
-(1 warm-up + 5 cold + 5 warm). Nếu Trivy DB hoặc tool versions khác baseline,
-analyzer E1/E2 sẽ báo lỗi và không gộp số liệu. Chạy lại nhóm trong cùng cửa sổ
-snapshot rồi mới công bố recall/false-positive/false-block. E3 hiện đo pip cache
-trong khi scanner jobs vẫn chạy song song; không diễn giải như so sánh tuần tự.
+Fixture matrix mặc định gồm 47 lượt (baseline + 46 mẫu); baseline chạy trước,
+sau đó D/C/N chạy song song tối đa 4 workflow. E3 thêm 11 lượt (1 warm-up + 5
+cold + 5 warm). Workflow dùng cache DB Trivy/Grype có snapshot ID cố định; nếu
+snapshot hoặc tool version khác baseline, analyzer E1/E2/E3 đánh dấu chưa đủ và
+không gộp số liệu. E3 đo pip cache trong khi scanner jobs vẫn chạy song song;
+không diễn giải như so sánh tuần tự.
 
 Sau study, xem `tests/results/live-study/metrics/e1-e2-live/` và
 `tests/results/e3-live/`, kiểm tra URL từng case trong `run-index.json`, rồi mới
