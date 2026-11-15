@@ -2,7 +2,8 @@
 """Aggregate manual workflow_dispatch fixture observations into E1 evidence.
 
 Expected input is a directory containing downloaded Actions artifacts with
-reports/experiment/observation.json from one baseline and Dxx/Cxx runs.
+reports/experiment/observation.json. Each fixture must have one baseline from
+the exact same commit; multiple commit-matched study slices can be aggregated.
 """
 
 import argparse
@@ -337,20 +338,24 @@ def main() -> int:
                 f"{', '.join(missing_policy_reports)}"
             )
     baseline_records = [item for item in observations if item.get("fixture_id", "baseline") == "baseline"]
-    if len(baseline_records) != 1:
-        errors.append(f"expected exactly one baseline observation; found {len(baseline_records)}")
-        baseline = baseline_records[0] if baseline_records else None
-    else:
-        baseline = baseline_records[0]
+    baseline_by_commit = {}
+    for baseline_record in baseline_records:
+        commit = baseline_record.get("commit")
+        if not commit:
+            errors.append(f"baseline observation has no commit: {baseline_record.get('_source_path')}")
+            continue
+        if commit in baseline_by_commit:
+            errors.append(f"multiple baseline observations use commit {commit}")
+            continue
+        baseline_by_commit[commit] = baseline_record
+    if not baseline_by_commit:
+        errors.append("expected at least one complete baseline observation; found none")
+    baseline = next(iter(baseline_by_commit.values()), None)
+    baseline_commits = sorted(baseline_by_commit)
+    base_commit = baseline_commits[0] if len(baseline_commits) == 1 else None
 
-    if baseline:
-        base_commit = baseline.get("commit")
-        base_versions = baseline.get("tool_versions_configured")
-        base_fingerprints = finding_fingerprints(baseline)
-    else:
-        base_commit = None
-        base_versions = None
-        base_fingerprints = set()
+    def baseline_for(observation):
+        return baseline_by_commit.get(observation.get("commit"))
 
     by_case = defaultdict(list)
     for observation in observations:
@@ -358,23 +363,26 @@ def main() -> int:
         if case_id == "baseline":
             continue
         by_case[case_id].append(observation)
-        if baseline and observation.get("commit") != base_commit:
-            errors.append(f"{case_id} uses commit {observation.get('commit')}, baseline uses {base_commit}")
-        if baseline and observation.get("tool_versions_configured") != base_versions:
-            errors.append(f"{case_id} tool versions differ from baseline")
-        if baseline:
-            if observation.get("trivy_db_snapshot_id") != baseline.get("trivy_db_snapshot_id"):
-                errors.append(f"{case_id} Trivy database snapshot key differs from baseline")
-            ignored_runtime_jobs = ignored_runtime_jobs_for_pair(observation, baseline)
-            if comparable_trivy_runtime(observation, ignored_runtime_jobs) != comparable_trivy_runtime(
-                baseline, ignored_runtime_jobs
-            ):
-                errors.append(f"{case_id} Trivy vulnerability database metadata differs from baseline")
-            if not ignored_runtime_jobs:
-                grype_runtime = comparable_grype_runtime(observation)
-                baseline_grype_runtime = comparable_grype_runtime(baseline)
-                if grype_runtime != baseline_grype_runtime and (grype_runtime or baseline_grype_runtime):
-                    errors.append(f"{case_id} Grype vulnerability database metadata differs from baseline")
+        paired_baseline = baseline_for(observation)
+        if not paired_baseline:
+            errors.append(
+                f"{case_id} uses commit {observation.get('commit')} with no same-commit baseline"
+            )
+            continue
+        if observation.get("tool_versions_configured") != paired_baseline.get("tool_versions_configured"):
+            errors.append(f"{case_id} tool versions differ from its same-commit baseline")
+        if observation.get("trivy_db_snapshot_id") != paired_baseline.get("trivy_db_snapshot_id"):
+            errors.append(f"{case_id} Trivy database snapshot key differs from its same-commit baseline")
+        ignored_runtime_jobs = ignored_runtime_jobs_for_pair(observation, paired_baseline)
+        if comparable_trivy_runtime(observation, ignored_runtime_jobs) != comparable_trivy_runtime(
+            paired_baseline, ignored_runtime_jobs
+        ):
+            errors.append(f"{case_id} Trivy vulnerability database metadata differs from its same-commit baseline")
+        if not ignored_runtime_jobs:
+            grype_runtime = comparable_grype_runtime(observation)
+            baseline_grype_runtime = comparable_grype_runtime(paired_baseline)
+            if grype_runtime != baseline_grype_runtime and (grype_runtime or baseline_grype_runtime):
+                errors.append(f"{case_id} Grype vulnerability database metadata differs from its same-commit baseline")
 
     defects = {case_id: row for case_id, row in truth.items() if row.get("type") == "defect"}
     cleans = {case_id: row for case_id, row in truth.items() if row.get("type") == "clean"}
@@ -399,9 +407,11 @@ def main() -> int:
         row = truth[case_id]
         records = by_case[case_id]
         for observation in records:
+            paired_baseline = baseline_for(observation)
+            paired_fingerprints = finding_fingerprints(paired_baseline) if paired_baseline else set()
             new_items = [
                 item for item in observation.get("normalized_findings", {}).get("items", [])
-                if isinstance(item, dict) and finding_identity(item) not in base_fingerprints
+                if isinstance(item, dict) and finding_identity(item) not in paired_fingerprints
             ]
             if row.get("type") == "defect":
                 detected = any(finding_matches_defect(item, row) for item in new_items)
@@ -421,8 +431,8 @@ def main() -> int:
             for policy in POLICIES:
                 decision = outcome_for_policy(observation, policy)
                 decisions[policy] = decision
-                new_blockers = new_blockers_for_policy(observation, baseline, policy) if baseline else None
-                new_warnings = new_warnings_for_policy(observation, baseline, policy) if baseline else None
+                new_blockers = new_blockers_for_policy(observation, paired_baseline, policy) if paired_baseline else None
+                new_warnings = new_warnings_for_policy(observation, paired_baseline, policy) if paired_baseline else None
                 expected_action = str(row.get(f"expected_{policy}") or "").strip().upper()
                 expected_actions[policy] = expected_action or None
                 incremental_actions[policy] = (
@@ -467,9 +477,11 @@ def main() -> int:
     for case_id in sorted(supplied_cases & set(controls)):
         row = controls[case_id]
         for observation in by_case[case_id]:
+            paired_baseline = baseline_for(observation)
+            paired_fingerprints = finding_fingerprints(paired_baseline) if paired_baseline else set()
             new_items = [
                 item for item in observation.get("normalized_findings", {}).get("items", [])
-                if isinstance(item, dict) and finding_identity(item) not in base_fingerprints
+                if isinstance(item, dict) and finding_identity(item) not in paired_fingerprints
             ]
             expected_tool = row.get("expected_tool", "").lower()
             related_defects = [
@@ -500,8 +512,8 @@ def main() -> int:
             for policy in POLICIES:
                 decision = outcome_for_policy(observation, policy)
                 decisions[policy] = decision
-                new_blockers = new_blockers_for_policy(observation, baseline, policy) if baseline else None
-                new_warnings = new_warnings_for_policy(observation, baseline, policy) if baseline else None
+                new_blockers = new_blockers_for_policy(observation, paired_baseline, policy) if paired_baseline else None
+                new_warnings = new_warnings_for_policy(observation, paired_baseline, policy) if paired_baseline else None
                 if decision in {"PASS", "WARN", "BLOCK"} and new_blockers is not None:
                     control_policy_counts[policy]["attempts"] += 1
                     control_policy_counts[policy]["blocked"] += int(bool(new_blockers))
@@ -565,6 +577,11 @@ def main() -> int:
         "evidence_status": "complete" if not errors and (expected_cases | set(controls)) <= supplied_cases else "partial",
         "baseline_run_url": baseline.get("run_url") if baseline else None,
         "baseline_commit": base_commit,
+        "baseline_commits": baseline_commits,
+        "baseline_runs": [
+            {"commit": commit, "run_url": record.get("run_url")}
+            for commit, record in sorted(baseline_by_commit.items())
+        ],
         "fixture_cases_expected": len(expected_cases),
         "fixture_cases_measured": len(expected_cases & supplied_cases),
         "missing_cases": sorted(expected_cases - supplied_cases),
@@ -597,15 +614,15 @@ def main() -> int:
         "cases": case_results,
         "errors": errors,
         "limitations": [
-            "Scanner detection means a new normalized finding matching expected tool and rule/CVE relative to the same-commit baseline; file matching is required except for Trivy SCA, whose paths refer to installed distribution metadata rather than the requirements manifest.",
+            "Scanner detection means a new normalized finding matching expected tool and rule/CVE relative to a baseline observation for the exact same commit; file matching is required except for Trivy SCA, whose paths refer to installed distribution metadata rather than the requirements manifest.",
             "Grype image findings are baseline-matched by CVE and package when available; legacy observations without package identity fall back to CVE because image-layer paths are unstable across rebuilds.",
             "For schema v5 observations, policy warnings preserve advisory/control IDs and affected source identities; Grype DB schema, build timestamp, source URL, and runtime version are compared with baseline; intentional image-scan skips are excluded.",
             "Clean-change false-block counts cover Cxx fixtures; Nxx scanner false positives and gate false blocks are reported separately.",
-            "Gate outcomes use blocker details added relative to the same-commit baseline; pre-existing baseline blockers are not attributed to a fixture.",
+            "Gate outcomes use blocker details added relative to a baseline observation for the exact same commit; pre-existing baseline blockers are not attributed to a fixture.",
             "TP/FN/FP/TN compare expected BLOCK versus whether the fixture introduced a new blocker. Exact action alignment separately compares expected PASS/WARN/BLOCK with new blocker and warning details relative to baseline.",
             "Target-specific blocker counts are diagnostic only; a newly introduced blocker for a different finding can still correctly block a fixture when the seeded change introduced additional high-risk findings.",
             "Repeat runs are counted as attempts; report the number of runs and avoid treating repeated copies of a case as independent defects.",
-            "Trivy CLI and database metadata must match the baseline; findings from runs with different database metadata are not pooled.",
+            "Each fixture is paired only with a baseline on its exact commit. Trivy CLI and database metadata must also match within each pair; findings from runs with different database metadata are not pooled.",
         ],
     }
 
@@ -629,7 +646,7 @@ def main() -> int:
         "# E1/E2 – Kết quả từ quan sát CI theo fixture",
         "",
         f"- Trạng thái dữ liệu: **{report['evidence_status']}**",
-        f"- Commit baseline: `{base_commit or 'chưa có'}`",
+        f"- Commit baseline theo cặp: {', '.join(f'`{commit}`' for commit in baseline_commits) or 'chưa có'}",
         f"- Fixture D/C đã đo: {report['fixture_cases_measured']}/{report['fixture_cases_expected']}",
         f"- Negative controls đã đo: {report['negative_controls_measured']}/{report['negative_controls_expected']}",
         "",
@@ -681,7 +698,7 @@ def main() -> int:
         "## Giới hạn và mẫu còn thiếu",
         "",
         "- Các mẫu N chưa có kết quả thì không được suy ra là true negative.",
-        "- Chỉ gộp các run có cùng commit baseline và cùng phiên bản công cụ.",
+        "- Mỗi fixture chỉ được so với baseline cùng commit; nếu có nhiều commit thì mỗi commit cần baseline riêng và cùng phiên bản công cụ.",
         "- Xem JSON cạnh file này để truy vết run URL, finding, policy, report hash và fixture.",
         "",
         f"Thiếu fixture: {', '.join(report['missing_cases']) if report['missing_cases'] else 'không'}.",

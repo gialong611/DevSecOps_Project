@@ -1,13 +1,12 @@
 --- a/.github/workflows/ci.yml
 +++ b/.github/workflows/ci.yml
-@@ -96,6 +96,10 @@
+@@ -98,6 +98,9 @@
+ 
        - name: Run tests
          run: python -m pytest -v src/test tests
- 
 +      - name: Add clean completion summary
 +        if: always()
 +        run: echo "CI job completed" >> "$GITHUB_STEP_SUMMARY"
-+
-   # ─────────────────────────────────────────────────────────────
-   # 2) SAST + Secret + SCA (chế độ thu thập: thoát 0, chỉ báo cáo)
-   # ─────────────────────────────────────────────────────────────
+ 
+   # Seed one immutable Trivy vulnerability database before parallel scanner jobs.
+   # The dependent jobs restore this exact cache and skip automatic DB updates.
