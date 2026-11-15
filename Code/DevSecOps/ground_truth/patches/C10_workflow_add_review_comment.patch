@@ -1,6 +1,6 @@
 --- a/.github/workflows/ci.yml
 +++ b/.github/workflows/ci.yml
-@@ -98,6 +98,9 @@
+@@ -103,6 +103,9 @@
  
        - name: Run tests
          run: python -m pytest -v src/test tests
@@ -8,5 +8,5 @@
 +        if: always()
 +        run: echo "CI job completed" >> "$GITHUB_STEP_SUMMARY"
  
-   # Seed one immutable Trivy vulnerability database before parallel scanner jobs.
-   # The dependent jobs restore this exact cache and skip automatic DB updates.
+   # Seed immutable Trivy and Grype vulnerability databases before scanner jobs.
+   # Consumers restore these exact caches and never update the DB during a run.
