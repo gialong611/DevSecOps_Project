@@ -1,81 +1,77 @@
 # Trạng thái hoàn thiện đề tài 21
 
-Cập nhật: 2026-11-14. Tài liệu tách bằng chứng CI đã có khỏi kết quả thí nghiệm
-chưa chạy; không dùng dữ liệu thăm dò để tuyên bố recall hoặc false-positive rate.
+Cập nhật: 2026-11-15. Báo cáo này phân biệt số đo từ scanner/CI trực tiếp với
+dữ liệu mô phỏng. Các file raw lớn nằm trong thư mục kết quả cục bộ và không
+được commit; bảng dưới đây ghi số đo, mã commit và URL để truy vết.
 
-## Tóm tắt điều hành
+## Tóm tắt kết quả
 
-- Artifact baseline mới nhất đã phân tích là [GitHub Actions run ID 43606451482](https://github.com/gialong611/DevSecOps_Project/actions/runs/43606451482/attempts/1), commit `ff6f7c437655a59c1ee96cce89d47a5fed253ef3`, event `push`. Gate `WARN` nhưng pass với 0 blocker và 20 warning trên 292 finding. Số liệu được lưu tại `Code/DevSecOps/tests/results/metrics/ci_baseline_latest.json`.
-- Artifact xác nhận 18 cảnh báo HIGH và 2 MEDIUM; 20/20 warning liên kết tới finding nguồn (101 finding được liên kết). Trong đó cảnh báo IaC tổng hợp liên kết 40 finding từ 17 control ID.
-- GitHub xác nhận run #19 hoàn tất `success`; cả 7 job đều pass, gồm Python tests, gate, release và deploy-smoke. Đây là bằng chứng pipeline push chạy xuyên suốt, không thay cho PR block/pass.
-- Run 43606451482 có Checkov JSON hợp lệ, 77 finding Checkov, 11 Trivy IaC misconfiguration; không còn `CKV_AWS_382`/`AWS-0104`. Cảnh báo IaC mới đã được xác nhận trên CI.
-- CI ghi thời gian scan security 29s, IaC 41s, image 114s; đường găng song song là 114s và runner-minutes là 3.067. Đây là một lượt đơn, không phải kết luận E3.
-- Run là baseline cold; E4 không được yêu cầu. Chưa có bằng chứng PR block/pass hoặc branch protection; GitHub API từ kết nối hiện tại từ chối đọc branch protection với HTTP 403.
-- `decisions.csv` và `runs.csv` là dữ liệu phát lại/thăm dò. Chúng không chứng minh scanner phát hiện lỗi hay đo được thời gian CI thật.
-- Run 43606451482 xác nhận parser Trivy `FAIL`/`FAILED`, sửa egress, Checkov JSON array, `conftest verify`, và cảnh báo IaC/K8s tổng hợp có correlation tới finding nguồn.
-- Các thay đổi hiện tại thêm thu thập ma trận D/C/N, so sánh pip cache cold/warm, kiểm tra E4 nghiêm ngặt hơn và đưa các script phân tích vào pytest. Chưa có dữ liệu live đủ cho các thí nghiệm D/C/N.
-- AWS được hoãn đến sau khi hoàn tất bằng chứng cốt lõi. DOCX sẽ được cập nhật sau khi có số liệu thực nghiệm; PPTX không thuộc phạm vi cập nhật.
+| Thí nghiệm | Kết quả đã đo | Diễn giải |
+|---|---|---|
+| E1 – scanner D/C/N | 38/38 fixture D/C và 8/8 negative control hoàn tất; scanner kỳ vọng tìm thấy 28/28 lỗi D; C có finding mới 0/10; finding false positive theo rule đích trên N là 0/8 | Đo trực tiếp từ raw scanner reports, không lấy ground truth làm kết quả phát hiện |
+| E2 – gate G0/G1/G2 | G1: TP/FN/FP/TN = 28/0/0/10; G2 = 23/0/0/15. Block recall trên D đều 100%, false-block trên C là 0%. Block khớp rule đích: G1 27/28, G2 22/23 | Gate khớp hành động kỳ vọng 38/38. Có 1 N bị G1 chặn (1/8); G0/G2 chặn 0/8. Một số blocker đúng mức release nhưng không trùng rule/CVE gieo cài |
+| E3 – thời gian CI | 5 lượt cold + 5 warm cùng commit và cùng snapshot Trivy/Grype. Wall median: 104s cold, 110s warm; IQR 4s/6s; scan-stage median 88s/90s; runner-minutes median 3.17/3.25 | Pip cache warm chậm hơn 6s (5.77%) trong mẫu này; không có bằng chứng cải thiện tốc độ. Job image là job dài nhất: median 56s cold, 63s warm |
+| E4 – image/SBOM | 4.486 → 206 finding (-95,4%); CRITICAL 18 → 0, HIGH 804 → 47; SBOM 22.943 → 2.856 gói (-87,6%) | Cùng Python 3.13.18, Debian 13.7, amd64, Trivy 0.76.1 và DB snapshot theo từng scan đã khớp. Có thể quy delta cho toàn bộ thay đổi Dockerfile/image, không tách riêng tác động từng package |
 
-## Bảng trạng thái có thể kiểm tra nhanh
+## Bằng chứng và giới hạn
 
-| Hạng mục | Bằng chứng hiện có | Trạng thái | Điều kiện để đánh dấu hoàn tất |
-|---|---|---|---|
-| Pipeline baseline | Run 43606451482: gate WARN/pass, 0 blocker, 20 warnings; 292 finding; 20/20 warning linked | Baseline và cảnh báo IaC đã xác nhận | Duy trì ≤20 cảnh báo; kiểm tra trên PR thật và branch protection |
-| E1 scanner theo D/C/N | `findings.csv` là dữ liệu dự kiến; chưa có đủ raw observation theo fixture | **Chưa đạt** | Baseline + D01–D28 + C01–C10 + N01–N08 có observation complete, cùng commit/tool/Trivy DB phù hợp |
-| E2 G0/G1/G2 | Metric hiện có phát lại `decisions.csv`; G2 ghi 20/28 lỗi bị chặn trong dữ liệu đó | **Thăm dò, chưa phải số đo live** | Tổng hợp policy decision từ cùng các observation CI thực tế; báo riêng D, C và N |
-| PR block/pass | Workflow có gate trên pull request; chưa có bằng chứng required status check của nhánh và PR lỗi/sửa thật | **Chưa xác minh** | PR lỗi bị gate BLOCK, PR sau sửa được gate PASS; branch rule bắt buộc `gate (Conftest Rego)` và `Run Python tests` |
-| E3 thời gian | Run 43606451482: cold một lượt; job 29/41/114 giây, đường găng 114 giây, runner 3,067 phút | **Chưa đủ** | Tối thiểu 5 lượt cache cold và 5 lượt cache warm cùng commit; loại warm-up; báo median/IQR, thời gian từng job, wall time và runner-minutes |
-| E4 image/SBOM | Run #13: lỗ hổng 4.721→188, SBOM 22.921→2.860; Python 3.12.15→3.12.16; DB chỉ ghi ở cấp job | **Live nhưng limited; không quy kết nhân quả** | E4 mới xác nhận cùng Python, OS, architecture và Trivy DB riêng cho từng lần quét; lưu image config digest, Dockerfile SHA-256, hai báo cáo Trivy và hai SBOM |
-| Tài liệu | README và báo cáo Markdown được làm mới theo trạng thái này | Đã cập nhật Markdown | Điền số CI thật vào DOCX sau khi E1–E4 hoàn tất; không sửa PPTX |
-| AWS | Chưa triển khai | **Hoãn có chủ đích** | Chỉ xem xét sau khi các mục D/C/N, PR, E3, E4 có bằng chứng tái lập |
+- E1/E2: tổng hợp 48 observation (2 baseline theo SHA, 38 D/C và 8 N), tool
+  versions và snapshot DB ghim nhất quán. Báo cáo live ở
+  `Code/DevSecOps/tests/results/combined-live-study-bb94f33-a0d6a8e/metrics/e1-e2-live/`;
+  nguồn và run URL nằm trong `source-manifest.json` và JSON cạnh Markdown.
+- E3: [10 lượt đo trên cùng commit](https://github.com/gialong611/DevSecOps_Project/actions/runs/43720462402)
+  đến [run cuối](https://github.com/gialong611/DevSecOps_Project/actions/runs/43722229167),
+  một warm-up bị loại. So sánh chỉ thay đổi pip cache; scanner jobs tiếp tục chạy
+  song song. Vì vậy kết luận giới hạn ở profile này và không chứng minh serial-vs-parallel.
+- E4: [GitHub Actions run 43723320787](https://github.com/gialong611/DevSecOps_Project/actions/runs/43723320787/attempts/1).
+  Hai image có config digest và Dockerfile SHA-256; chưa có registry manifest
+  digest vì image chỉ được scan cục bộ. Kết quả được đánh `comparable`, DB snapshot
+  được xác minh trước/sau từng lần scan. Số liệu SBOM/finding lấy lại từ raw Trivy
+  và Syft report.
+- E1/E2 và E3 đã ghi nhận G2 baseline bị BLOCK do finding Gitleaks trong lịch sử
+  repo. Pipeline test, DB và scanner vẫn hoàn thành ở các lượt E3 được chấp nhận;
+  trạng thái gate không bị che giấu. Chủ repo cần xác minh, thu hồi credential nếu
+  còn hiệu lực và xử lý lịch sử trước khi coi baseline là sạch. Không đưa giá trị
+  secret vào báo cáo.
+- GitHub hiện chưa có branch protection/ruleset cho `main` (API protection trả
+  404 và danh sách rulesets rỗng tại thời điểm kiểm tra). Do đó chưa có bằng chứng
+  PR lỗi bị required check chặn, PR đã sửa được merge, hay check bắt buộc trước merge.
+- T0 KEV/EPSS trong E4 vẫn là mô phỏng; không trình bày như dữ liệu lịch sử CISA/FIRST.
+  Chưa có registry digest nên không khẳng định cùng một image đã publish.
 
-## Thay đổi mã trong lượt này
+## Mức hoàn thiện theo tiêu chí đánh giá
 
-- CI chạy `pytest` cho cả `src/test` và `tests`, bao gồm test các script phân tích/thu thập.
-- Workflow có tên run chứa fixture, cache profile và commit; artifact `experiment-<fixture>` chỉ giữ observation, gate report và timing để tổng hợp ma trận mà không phải tải toàn bộ raw reports.
-- Có thể bật/tắt pip cache cho các job test, Semgrep và Checkov. E3 warm-up được đánh dấu riêng và không tính vào thống kê.
-- `tests/run_fixture_matrix.py` dispatch từng fixture độc lập, khóa tất cả vào một commit, tải observation và tự tạo báo cáo E1/E2. Script cũng hỗ trợ lặp E3 cold/warm và resume sau khi bị gián đoạn.
-- `tests/summarize_e3_live.py` báo median, IQR, p90, wall time, runner-minutes, từng job, số lượt hợp lệ và trạng thái thiếu bằng chứng.
-- E4 đọc phiên bản Python trực tiếp trong container, ghi config digest và SHA-256 Dockerfile, dùng lại Trivy DB đã ghi metadata và có chế độ fail nếu so sánh không tương thích.
-- Bản image runtime được vá APT/zlib theo security floor, cập nhật FastAPI/Starlette, và loại pip khỏi runtime. Xác minh local: image build thành công, 64/64 pytest pass, Trivy không còn ba CVE đang gây BLOCK và không còn HIGH/CRITICAL có bản vá; vẫn cần CI run mới để xác nhận gate thực tế.
-- Normalizer nhận cả Trivy config status `FAIL` và `FAILED`; G2/enrichment chặn `CKV_AWS_382` và `AWS-0104`. IaC baseline giới hạn egress ALB/app theo cổng và vùng VPC, bỏ egress của DB; D16/C05/N06 patches còn áp dụng sạch.
-- Thêm `conftest verify` cho G0/G1/G2 vào CI. Lần xác minh local trước đây đạt 64 pytest; artifact mới xác nhận Trivy config còn 11 finding và không còn `AWS-0104`, đồng thời workflow gate hoàn tất trên GitHub.
-- Run 43606451482 xác nhận G2 gom các control IaC/K8s thành một advisory; 40 finding từ 17 control ID được nối về warning tổng hợp. Tổng warning là 20, vẫn bằng ngưỡng cảnh báo nghiên cứu đã đặt.
-- Metric E1/E2/E3 phát lại từ CSV được gắn rõ nhãn thăm dò; không thể hiện như kết quả scanner live.
+Phần thực nghiệm và dữ liệu đo đã tiến bộ rõ: E1–E4 có số đo CI, snapshot và
+nguồn truy vết. Các hạng mục chưa thể đánh dấu hoàn tất là xác minh gate qua PR
+thật/branch protection, xử lý finding Gitleaks lịch sử, và bổ sung bằng chứng
+registry/provenance nếu muốn chứng minh image phát hành. Vì vậy chưa nên ghi đề tài
+100/100 hoặc tuyên bố toàn bộ quy trình merge đã được kiểm chứng.
 
-## Cách thu bằng chứng sau khi các thay đổi được đẩy lên GitHub
+AWS được hoãn để giữ trọng tâm và bảo toàn tính tái lập. Theo phạm vi đã thống
+nhất, DOCX/PPTX không được chỉnh sửa trong lượt này; số liệu đã được cập nhật vào
+tài liệu Markdown trong repo.
 
-Từ thư mục `Code/DevSecOps`, sau khi `gh auth login` có quyền chạy workflow và tải artifact:
+## Chạy lại thí nghiệm
+
+Từ `Code/DevSecOps`, máy cần GitHub CLI đã đăng nhập và quyền dispatch workflow:
 
 ```bash
-python tests/run_fixture_matrix.py \
-  --ref main \
-  --out-dir tests/results/live-study \
-  --e3-cold-repeats 5 \
-  --e3-warm-repeats 5
+python tests/run_fixture_matrix.py --ref main --out-dir tests/results/live-study --parallelism 4
+
+python tests/run_fixture_matrix.py --ref main --skip-fixtures \
+  --e3-cold-repeats 5 --e3-warm-repeats 5 --out-dir tests/results/e3-live
 ```
 
-Lệnh này chạy baseline và 46 fixture độc lập, sau đó chạy một warm-up cache và
-10 lượt E3 đo chính thức. Mỗi lượt lưu run URL, commit, trạng thái gate, timing
-và observation. Kết quả được ghi trong `tests/results/live-study/metrics/`.
-Nếu Trivy DB thay đổi trong lúc chạy ma trận, bộ tổng hợp đánh dấu dữ liệu chưa
-đủ so sánh; cần chạy lại nhóm fixture trên baseline mới cùng snapshot.
-
-Chạy E4 riêng bằng workflow `DevSecOps CI`, chọn `fixture_id=baseline` và
-`run_e4=true`. Workflow hiện lỗi nếu không có báo cáo live hoặc các yếu tố so
-sánh không khớp. Chỉ nhập số E4 vào báo cáo khi `causal_attribution_allowed`
+Script ghim một SHA cho từng study, lưu run URL/ID, observation, timing và hỗ trợ
+resume. Nếu Trivy hoặc Grype DB snapshot khác nhau, tách nhóm snapshot hoặc chạy
+lại; không gộp các mẫu không tương thích. E4 có thể phân tích lại artifact bằng
+`tests/analyze_e4_artifact.py`; chỉ quy kết delta khi `causal_attribution_allowed`
 là `true`.
 
-## Việc cần làm bên ngoài repo
+## Việc còn lại để khép đề tài
 
-1. Đẩy thay đổi lên GitHub, đợi CI mới chạy; nếu lỗi, sửa trước khi thu dữ liệu.
-2. Trong branch ruleset/protection của `main`, bật required checks cho
-   `gate (Conftest Rego)` và `Run Python tests`. Tạo PR lỗi nghiêm trọng để chứng
-   minh bị chặn, rồi PR đã sửa để chứng minh được qua.
-3. Chạy ma trận fixture và E3 bằng script ở trên. Không sửa ground truth sau khi
-   đã đóng băng bộ đáp án.
-4. Chạy E4 riêng, tải và đối chiếu raw artifact. Sau đó mới chốt điểm tự đánh
-   giá và cập nhật DOCX bằng các số có run URL.
-
-Điểm tự đánh giá trước đây dựa trên run #13 không được tự động nâng lên chỉ vì
-đã thêm mã thu thập. Chỉ tính lại rubric sau khi có kết quả live và PR evidence.
+1. Xử lý finding Gitleaks lịch sử một cách an toàn; chạy baseline sạch sau xử lý.
+2. Bật branch protection/ruleset trên `main` với Python tests và gate là required checks.
+3. Tạo PR chứa lỗi nghiêm trọng để xác nhận bị chặn, rồi PR đã sửa để xác nhận qua.
+4. Nếu cần bằng chứng cho artifact phát hành, push image theo digest cố định và
+   liên kết digest đó với SBOM, scan report và provenance.

@@ -429,6 +429,7 @@ def main() -> int:
             decisions = {}
             incremental_actions = {}
             expected_actions = {}
+            target_specific_blocked = {}
             for policy in POLICIES:
                 decision = outcome_for_policy(observation, policy)
                 decisions[policy] = decision
@@ -456,10 +457,12 @@ def main() -> int:
                     clean_policy_counts[policy][bucket] += 1
                 values[f"expected_{expected_action.lower()}"] += 1
                 values["action_aligned"] += int(incremental_actions[policy] == expected_action)
-                values["target_specific_blocked"] += int(any(
+                target_match = any(
                     blocker_matches_target(item, [row.get("rule_or_cve", "")])
                     for item in new_blockers
-                ))
+                )
+                target_specific_blocked[policy] = target_match
+                values["target_specific_blocked"] += int(target_match)
 
             case_results.append({
                 "fixture_id": case_id,
@@ -473,6 +476,7 @@ def main() -> int:
                 "policy_decisions": decisions,
                 "expected_policy_actions": expected_actions,
                 "incremental_policy_actions": incremental_actions,
+                "target_specific_blocked": target_specific_blocked,
             })
 
     for case_id in sorted(supplied_cases & set(controls)):
@@ -658,10 +662,10 @@ def main() -> int:
         "",
         "## E2 – Quyết định gate theo policy",
         "",
-        "TP/FN/FP/TN xét gate có thêm blocker so với baseline hay không; cột `Đúng hành động` còn đối chiếu riêng cả PASS, WARN và BLOCK theo ground truth.",
+        "TP/FN/FP/TN xét gate có thêm blocker so với baseline hay không; `Block trúng rule đích` yêu cầu blocker khớp CVE/rule gieo cài. Nếu hai số khác nhau, gate đã chặn nhưng do blocker khác.",
         "",
-        "| Policy | TP | FN | FP | TN | Block recall | Đúng hành động | False-block clean |",
-        "|---|---:|---:|---:|---:|---:|---:|---:|",
+        "| Policy | TP | FN | FP | TN | Block recall | Block trúng rule đích | Đúng hành động | False-block clean |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for policy in POLICIES:
         metric = policy_metrics[policy]
@@ -673,9 +677,14 @@ def main() -> int:
         false_block_text = (
             f"{false_block:.2%}" if false_block is not None else "chưa đủ dữ liệu"
         )
+        target_specific_text = (
+            f"{metric['target_specific_blocked_cases']}/{metric['expected_block_cases']}"
+            if metric["expected_block_cases"] else "—"
+        )
         markdown.append(
             f"| {policy.upper()} | {metric['TP']} | {metric['FN']} | "
-            f"{metric['FP']} | {metric['TN']} | {recall_text} | {aligned_text} | {false_block_text} |"
+            f"{metric['FP']} | {metric['TN']} | {recall_text} | {target_specific_text} | "
+            f"{aligned_text} | {false_block_text} |"
         )
     markdown.extend([
         "",

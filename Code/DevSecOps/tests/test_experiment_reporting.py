@@ -369,7 +369,7 @@ def test_e4_artifact_ingestion_checks_raw_totals_and_limits_causal_claim(tmp_pat
 
     for side, image_id, python_version, severity in (
         ("before", "sha256:before", "3.12.15", "HIGH"),
-        ("after", "sha256:after", "3.12.16", "LOW"),
+        ("after", "sha256:after", "3.12.15", "LOW"),
     ):
         write_json(f"raw/e4/trivy-image-{side}.json", {
             "Metadata": {
@@ -390,11 +390,25 @@ def test_e4_artifact_ingestion_checks_raw_totals_and_limits_causal_claim(tmp_pat
             "components": [{"name": "example"}],
         })
 
+    db_snapshot = {
+        "version": "2",
+        "updated_at": "2026-11-01T00:00:00Z",
+        "next_update": "2026-11-02T00:00:00Z",
+    }
     write_json("experiment/trivy-runtime-image.json", {
         "trivy_version": "0.76.1",
-        "databases": {"Vulnerability DB": {"version": "2", "updated_at": "2026-11-01T00:00:00Z"}},
+        "databases": {"Vulnerability DB": db_snapshot},
         "error": None,
     })
+    for name in (
+        "before-before-scan", "before-after-scan",
+        "after-before-scan", "after-after-scan",
+    ):
+        write_json(f"raw/e4/trivy-runtime-{name}.json", {
+            "trivy_version": "0.76.1",
+            "databases": {"Vulnerability DB": db_snapshot},
+            "error": None,
+        })
     write_json("timing/image.json", {
         "run_id": "123",
         "run_attempt": "1",
@@ -412,8 +426,16 @@ def test_e4_artifact_ingestion_checks_raw_totals_and_limits_causal_claim(tmp_pat
         },
         "db_drift": {"description": "simulated", "rows": [], "changed_count": 0, "changed_decisions": []},
         "live": {
-            "before": {"vulnerabilities": {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 0, "LOW": 0, "UNKNOWN": 0}, "sbom_packages": 1},
-            "after": {"vulnerabilities": {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 1, "UNKNOWN": 0}, "sbom_packages": 1},
+            "before": {
+                "vulnerabilities": {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 0, "LOW": 0, "UNKNOWN": 0},
+                "sbom_packages": 1,
+                "image": {"dockerfile_sha256": "before-dockerfile-hash"},
+            },
+            "after": {
+                "vulnerabilities": {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 1, "UNKNOWN": 0},
+                "sbom_packages": 1,
+                "image": {"dockerfile_sha256": "after-dockerfile-hash"},
+            },
             "delta": {"vulnerabilities_total": 0, "sbom_packages": 0},
         },
     })
@@ -421,11 +443,22 @@ def test_e4_artifact_ingestion_checks_raw_totals_and_limits_causal_claim(tmp_pat
     result = e4_artifact.analyze(tmp_path)
     assert result["live"]["before"]["vulnerabilities_total"] == 1
     assert result["live"]["after"]["vulnerabilities_total"] == 1
+    assert result["evidence_status"] == "comparable"
+    assert result["causal_attribution_allowed"] is True
+    assert result["live"]["comparability"]["same_python_version"] is True
+    assert result["live"]["comparability"]["job_level_trivy_snapshot_recorded"] is True
+    assert result["live"]["comparability"]["per_scan_trivy_snapshot_verified"] is True
+    assert result["live"]["raw_artifact_sha256"]["trivy_before"]
+    assert result["live"]["before"]["image"]["dockerfile_sha256"] == "before-dockerfile-hash"
+
+    drift_path = tmp_path / "raw/e4/trivy-runtime-after-after-scan.json"
+    drift = json.loads(drift_path.read_text(encoding="utf-8"))
+    drift["databases"]["Vulnerability DB"]["updated_at"] = "2026-11-02T00:00:00Z"
+    drift_path.write_text(json.dumps(drift), encoding="utf-8")
+    result = e4_artifact.analyze(tmp_path)
     assert result["evidence_status"] == "limited"
     assert result["causal_attribution_allowed"] is False
-    assert result["live"]["comparability"]["same_python_version"] is False
-    assert result["live"]["comparability"]["job_level_trivy_snapshot_recorded"] is True
-    assert result["live"]["raw_artifact_sha256"]["trivy_before"]
+    assert result["live"]["comparability"]["per_scan_trivy_snapshot_verified"] is False
 
 
 def test_e1_e3_observation_does_not_require_optional_e4_artifacts(monkeypatch, tmp_path):
