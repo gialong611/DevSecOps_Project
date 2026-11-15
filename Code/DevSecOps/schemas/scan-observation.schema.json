@@ -7,11 +7,11 @@
     "run_attempt", "run_url", "commit", "ref", "event", "recorded_at",
     "cache_mode", "benchmark_role", "scan_execution_mode", "scan_stage_started_at", "scan_stage_ended_at",
     "e4_evidence_status", "e4_requested", "e4_raw_reports",
-    "policy_configured", "tool_versions_configured", "raw_reports", "trivy_runtime",
+    "policy_configured", "tool_versions_configured", "raw_reports", "trivy_runtime", "grype_runtime",
     "normalized_findings", "gate", "policy_runs", "skipped_scans", "timing", "issues", "interpretation"
   ],
   "properties": {
-    "schema_version": {"const": 3},
+    "schema_version": {"const": 4},
     "evidence_status": {"enum": ["complete", "partial"]},
     "sample_type": {"enum": ["repository-baseline", "patch-fixture"]},
     "fixture_id": {"type": "string", "pattern": "^(baseline|[DCN][0-9]{2})$"},
@@ -70,6 +70,24 @@
           "databases": {"type": "object"},
           "error": {"type": ["string", "null"]}
         }
+      }
+    },
+    "grype_runtime": {
+      "type": "object",
+      "required": ["grype_version", "image_scan_skipped", "db", "error"],
+      "properties": {
+        "grype_version": {"type": ["string", "null"]},
+        "image_scan_skipped": {"type": "boolean"},
+        "db": {
+          "type": ["object", "null"],
+          "properties": {
+            "schema_version": {"type": ["string", "null"]},
+            "built": {"type": ["string", "null"]},
+            "from": {"type": ["string", "null"]},
+            "valid": {"type": ["boolean", "null"]}
+          }
+        },
+        "error": {"type": ["string", "null"]}
       }
     },
     "normalized_findings": {

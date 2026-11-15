@@ -8,6 +8,7 @@ reports/experiment/observation.json from one baseline and Dxx/Cxx runs.
 import argparse
 import csv
 import json
+import re
 from collections import Counter, defaultdict
 from pathlib import Path
 
@@ -37,13 +38,29 @@ def load_observations(input_dir):
     return observations, errors
 
 
+def finding_identity(item):
+    if str(item.get("tool") or "").lower() == "grype":
+        # Image layers and the order of package locations can change when
+        # rebuilding an otherwise equivalent image. Match Grype findings
+        # by CVE and package when available; older observations omit the
+        # package field, so fall back to the CVE and ignore the unstable path.
+        return ("grype", item.get("rule_id"), item.get("resource") or "")
+    fingerprint = item.get("fingerprint")
+    return ("fingerprint", fingerprint) if fingerprint else None
+
+
 def finding_fingerprints(observation):
     findings = observation.get("normalized_findings", {}).get("items", [])
     return {
-        item.get("fingerprint")
+        identity
         for item in findings
-        if isinstance(item, dict) and item.get("fingerprint")
+        if isinstance(item, dict)
+        if (identity := finding_identity(item)) is not None
     }
+
+
+VULNERABILITY_ID = re.compile(r"\b(?:CVE-\d{4}-\d+|GHSA-[A-Za-z0-9-]+)\b", re.IGNORECASE)
+SEVERITY_IN_MESSAGE = re.compile(r"\b(CRITICAL|HIGH|MEDIUM|LOW)\b", re.IGNORECASE)
 
 
 def path_matches(finding_path, expected_path):
@@ -89,9 +106,18 @@ def new_blockers_for_policy(observation, baseline, policy):
     if current is None or base is None:
         return None
     def signature(item):
+        message = str(item.get("message") or "")
+        vulnerability = VULNERABILITY_ID.search(message)
+        if vulnerability:
+            severity = SEVERITY_IN_MESSAGE.search(message)
+            return (
+                str(item.get("rule_id") or ""),
+                vulnerability.group(0).upper(),
+                severity.group(1).upper() if severity else "",
+            )
         return (
             str(item.get("rule_id") or ""),
-            str(item.get("message") or ""),
+            message,
             str(item.get("file") or ""),
         )
     baseline_signatures = {signature(item) for item in base if isinstance(item, dict)}
@@ -117,6 +143,26 @@ def comparable_trivy_runtime(observation, ignored_jobs=()):
     return {
         job: value for job, value in runtime.items()
         if job not in ignored_jobs
+    }
+
+
+def comparable_grype_runtime(observation, ignore_image=False):
+    if ignore_image:
+        return None
+    runtime = observation.get("grype_runtime")
+    if not isinstance(runtime, dict):
+        return None  # Legacy v3 observations did not record Grype DB provenance.
+    if runtime.get("image_scan_skipped"):
+        return None
+    database = runtime.get("db")
+    if not isinstance(database, dict):
+        return None
+    return {
+        "grype_version": runtime.get("grype_version"),
+        "schema_version": database.get("schema_version"),
+        "built": database.get("built"),
+        "from": database.get("from"),
+        "valid": database.get("valid"),
     }
 
 
@@ -202,6 +248,11 @@ def main() -> int:
                 baseline, ignored_runtime_jobs
             ):
                 errors.append(f"{case_id} Trivy vulnerability database metadata differs from baseline")
+            if not ignored_runtime_jobs:
+                grype_runtime = comparable_grype_runtime(observation)
+                baseline_grype_runtime = comparable_grype_runtime(baseline)
+                if grype_runtime != baseline_grype_runtime and (grype_runtime or baseline_grype_runtime):
+                    errors.append(f"{case_id} Grype vulnerability database metadata differs from baseline")
 
     defects = {case_id: row for case_id, row in truth.items() if row.get("type") == "defect"}
     cleans = {case_id: row for case_id, row in truth.items() if row.get("type") == "clean"}
@@ -227,7 +278,7 @@ def main() -> int:
         for observation in records:
             new_items = [
                 item for item in observation.get("normalized_findings", {}).get("items", [])
-                if isinstance(item, dict) and item.get("fingerprint") not in base_fingerprints
+                if isinstance(item, dict) and finding_identity(item) not in base_fingerprints
             ]
             if row.get("type") == "defect":
                 expected_tool = row.get("expected_tool", "").lower()
@@ -281,7 +332,7 @@ def main() -> int:
         for observation in by_case[case_id]:
             new_items = [
                 item for item in observation.get("normalized_findings", {}).get("items", [])
-                if isinstance(item, dict) and item.get("fingerprint") not in base_fingerprints
+                if isinstance(item, dict) and finding_identity(item) not in base_fingerprints
             ]
             expected_tool = row.get("expected_tool", "").lower()
             related_defects = [
@@ -329,13 +380,14 @@ def main() -> int:
     policy_metrics = {}
     for policy in POLICIES:
         values = policy_counts[policy]
-        defects_measured = values["TP"] + values["FN"]
-        clean_measured = values["FP"] + values["TN"]
-        recall = values["TP"] / defects_measured if defects_measured else None
-        precision = values["TP"] / (values["TP"] + values["FP"]) if values["TP"] + values["FP"] else None
-        false_block = values["FP"] / clean_measured if clean_measured else None
+        counts = {key: values.get(key, 0) for key in ("TP", "FN", "FP", "TN")}
+        defects_measured = counts["TP"] + counts["FN"]
+        clean_measured = counts["FP"] + counts["TN"]
+        recall = counts["TP"] / defects_measured if defects_measured else None
+        precision = counts["TP"] / (counts["TP"] + counts["FP"]) if counts["TP"] + counts["FP"] else None
+        false_block = counts["FP"] / clean_measured if clean_measured else None
         policy_metrics[policy] = {
-            **values,
+            **counts,
             "defects_measured": defects_measured,
             "clean_changes_measured": clean_measured,
             "recall_blocked_defects": round(recall, 4) if recall is not None else None,
@@ -381,6 +433,8 @@ def main() -> int:
         "errors": errors,
         "limitations": [
             "Scanner detection means a new normalized finding matching expected tool, rule/CVE, and file relative to the same-commit baseline.",
+            "Grype image findings are baseline-matched by CVE and package when available; legacy observations without package identity fall back to CVE because image-layer paths are unstable across rebuilds.",
+            "For schema v4 observations, Grype DB schema, build timestamp, source URL, and runtime version are compared with baseline; intentional image-scan skips are excluded.",
             "Clean-change false-block counts cover Cxx fixtures; Nxx scanner false positives and gate false blocks are reported separately.",
             "Gate outcomes use blocker details added relative to the same-commit baseline; pre-existing baseline blockers are not attributed to a fixture.",
             "Repeat runs are counted as attempts; report the number of runs and avoid treating repeated copies of a case as independent defects.",

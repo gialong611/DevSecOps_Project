@@ -4,6 +4,7 @@
 import argparse
 import json
 import math
+import sys
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
@@ -264,9 +265,11 @@ def markdown(report):
     comparison = report.get("cache_comparison")
     lines.extend(["", "## So sánh cache", ""])
     if comparison:
+        difference = comparison["warm_minus_cold_seconds"]
+        direction = "chậm hơn" if difference > 0 else "nhanh hơn" if difference < 0 else "ngang nhau"
         lines.append(
-            f"- Chênh lệch median wall warm − cold: **{comparison['warm_minus_cold_seconds']} giây** "
-            f"({comparison['warm_change_percent']}%). {comparison['interpretation']}."
+            f"- Warm có median wall **{abs(difference)} giây {direction}** cold "
+            f"({comparison['warm_change_percent']:+.2f}%). {comparison['interpretation']}."
         )
     else:
         lines.append("Chưa đủ lượt đo ở cả hai profile để tính chênh lệch.")
@@ -279,6 +282,12 @@ def markdown(report):
 
 
 def main():
+    # The report contains Vietnamese text; PowerShell may launch Python with
+    # the legacy cp1252 console encoding even though the UTF-8 files were
+    # written successfully. Keep the CLI summary from failing after report
+    # generation on Windows.
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run-index", required=True, type=Path, help="run-index.json from run_fixture_matrix.py")
     parser.add_argument("--out-dir", required=True, type=Path)

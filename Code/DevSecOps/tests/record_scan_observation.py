@@ -22,6 +22,7 @@ RAW_REPORTS = (
     "checkov.stream.json",
     "trivy-config.json",
     "grype-image.json",
+    "conftest-workflow.json",
 )
 E4_RAW_REPORTS = (
     "raw/e4/trivy-image-before.json",
@@ -218,6 +219,33 @@ def main() -> int:
     else:
         skipped_scans = skipped_record["skipped"]
 
+    grype_report, grype_error = load_json(args.reports_dir / "grype-image.json")
+    grype_descriptor = (grype_report or {}).get("descriptor", {}) if isinstance(grype_report, dict) else {}
+    grype_db_status = (
+        grype_descriptor.get("db", {}).get("status", {})
+        if isinstance(grype_descriptor.get("db"), dict)
+        else {}
+    )
+    grype_skipped = "grype-image" in skipped_scans
+    grype_runtime = {
+        "grype_version": grype_descriptor.get("version") or os.environ.get("GRYPE_VERSION") or None,
+        "image_scan_skipped": grype_skipped,
+        "db": {
+            "schema_version": grype_db_status.get("schemaVersion"),
+            "built": grype_db_status.get("built"),
+            "from": grype_db_status.get("from"),
+            "valid": grype_db_status.get("valid"),
+        } if grype_db_status else None,
+        "error": grype_error,
+    }
+    if not grype_skipped:
+        if grype_error or not isinstance(grype_report, dict):
+            issues.append(f"invalid Grype image report: {grype_error or 'not an object'}")
+        if grype_runtime["grype_version"] != os.environ.get("GRYPE_VERSION"):
+            issues.append("Grype runtime version differs from configured version")
+        if not grype_db_status.get("built") or not grype_db_status.get("schemaVersion"):
+            issues.append("Grype vulnerability database metadata was not captured")
+
     run_id = os.environ.get("GITHUB_RUN_ID", "")
     attempt = os.environ.get("GITHUB_RUN_ATTEMPT", "")
     server = os.environ.get("GITHUB_SERVER_URL", "https://github.com").rstrip("/")
@@ -227,7 +255,7 @@ def main() -> int:
         run_url += f"/attempts/{attempt}"
 
     record = {
-        "schema_version": 3,
+        "schema_version": 4,
         "evidence_status": "complete" if not issues and run_url else "partial",
         "sample_type": "repository-baseline" if fixture_id == "baseline" else "patch-fixture",
         "fixture_id": fixture_id,
@@ -269,6 +297,7 @@ def main() -> int:
         "skipped_scans": skipped_scans,
         "timing": timing,
         "trivy_runtime": trivy_runtime,
+        "grype_runtime": grype_runtime,
         "issues": issues + ([] if run_url else ["no GitHub Actions run URL in environment"]),
         "interpretation": (
             "One patch observation only; aggregate independent runs before reporting recall. "

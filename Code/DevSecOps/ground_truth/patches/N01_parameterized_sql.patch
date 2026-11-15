@@ -1,10 +1,14 @@
 --- a/Code/DevSecOps/src/app/main.py
 +++ b/Code/DevSecOps/src/app/main.py
-@@ -56,1 +56,7 @@ def list_users():
-     return {"users": users_db}
+@@ -14,6 +14,11 @@
+ 
+ 
+ users_db: list[dict] = []
 +
 +
 +def lookup_user_by_name(cursor, name: str):
-+    sql = "SELECT * FROM users WHERE name = ?"
-+    cursor.execute(sql, (name,))
++    cursor.execute("SELECT * FROM users WHERE name = ?", (name,))
 +    return cursor.fetchone()
+ 
+ 
+ @app.get("/")

@@ -204,6 +204,12 @@ def test_run_matrix_requests_created_at_before_selecting_latest_run(monkeypatch)
     assert "createdAt" in json_fields
 
 
+def test_run_matrix_normalizes_baseline_and_fixture_ids():
+    assert matrix.normalize_fixture_id("baseline") == "baseline"
+    assert matrix.normalize_fixture_id("BASELINE") == "baseline"
+    assert matrix.normalize_fixture_id("d04") == "D04"
+
+
 def test_e4_database_snapshot_must_be_present_and_normalized():
     valid = {
         "databases": {
@@ -297,6 +303,18 @@ def test_e1_e3_observation_does_not_require_optional_e4_artifacts(monkeypatch, t
         path = reports / name
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("[]\n", encoding="utf-8")
+    (reports / "grype-image.json").write_text(json.dumps({
+        "descriptor": {
+            "version": "0.120.1",
+            "db": {"status": {
+                "schemaVersion": "v6.1.10",
+                "built": "2026-11-01T00:00:00Z",
+                "from": "https://example.invalid/grype-db.tar.zst",
+                "valid": True,
+            }},
+        },
+        "matches": [],
+    }), encoding="utf-8")
     (reports / "normalized_findings.json").write_text("[]\n", encoding="utf-8")
     (experiment / "trivy-runtime-security-scan.json").write_text(
         json.dumps({
@@ -328,6 +346,7 @@ def test_e1_e3_observation_does_not_require_optional_e4_artifacts(monkeypatch, t
     monkeypatch.setenv("GITHUB_SHA", "abc123")
     monkeypatch.setenv("GITHUB_REF", "refs/heads/main")
     monkeypatch.setenv("TRIVY_VERSION", "0.76.1")
+    monkeypatch.setenv("GRYPE_VERSION", "0.120.1")
     monkeypatch.setenv("FIXTURE_ID", "baseline")
     monkeypatch.setenv("RUN_E4", "false")
     monkeypatch.setenv("CACHE_MODE", "cold")
@@ -345,5 +364,10 @@ def test_e1_e3_observation_does_not_require_optional_e4_artifacts(monkeypatch, t
     assert observation.main() == 0
     result = json.loads(out.read_text(encoding="utf-8"))
     assert result["evidence_status"] == "complete"
+    assert result["schema_version"] == 4
     assert result["e4_evidence_status"] == "not_requested"
+    assert result["e4_requested"] is False
     assert all(not value["present"] for value in result["e4_raw_reports"].values())
+    assert result["grype_runtime"]["grype_version"] == "0.120.1"
+    assert result["grype_runtime"]["db"]["built"] == "2026-11-01T00:00:00Z"
+    assert result["issues"] == []
