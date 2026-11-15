@@ -68,8 +68,10 @@ Fixture matrix mặc định gồm 47 lượt (baseline + 46 mẫu); baseline ch
 sau đó D/C/N chạy song song tối đa 4 workflow. E3 thêm 11 lượt (1 warm-up + 5
 cold + 5 warm). Workflow dùng cache DB Trivy/Grype có snapshot ID cố định; nếu
 snapshot hoặc tool version khác baseline, analyzer E1/E2/E3 đánh dấu chưa đủ và
-không gộp số liệu. E3 đo pip cache trong khi scanner jobs vẫn chạy song song;
-không diễn giải như so sánh tuần tự.
+không gộp số liệu. E3 chỉ giữ run thành công, hoặc run baseline mà test, DB và
+cả ba job scanner thành công và gate G2 là job duy nhất bị chặn; các lỗi khác
+vẫn bị loại. E3 đo pip cache trong khi scanner jobs vẫn chạy song song; không
+diễn giải như so sánh tuần tự.
 
 Sau study, xem `tests/results/live-study/metrics/e1-e2-live/` và
 `tests/results/e3-live/`, kiểm tra URL từng case trong `run-index.json`, rồi mới

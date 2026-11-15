@@ -133,10 +133,20 @@ def test_e3_requires_five_runs_per_cache_with_one_commit_and_db_snapshot(tmp_pat
                 "scan_stage_wall_seconds": 60 + number,
                 "scan_stage_runner_minutes": 1.0,
                 "job_durations_seconds": {
+                    "Run Python tests": 18,
                     "Prepare Trivy and Grype vulnerability DB snapshots": 8,
                     "Security scans (collection mode)": 20,
                     "iac": 25,
                     "image": 60,
+                    "gate (Conftest Rego)": 12,
+                },
+                "job_conclusions": {
+                    "Run Python tests": "success",
+                    "Prepare Trivy and Grype vulnerability DB snapshots": "success",
+                    "Security scans (collection mode)": "success",
+                    "iac": "success",
+                    "image": "success",
+                    "gate (Conftest Rego)": "success",
                 },
             })
     report = e3.build_report({"runs": runs}, tmp_path / "run-index.json")
@@ -146,6 +156,23 @@ def test_e3_requires_five_runs_per_cache_with_one_commit_and_db_snapshot(tmp_pat
     assert report["acceptance"]["trivy_database_snapshot_id_consistent"] is True
     assert report["acceptance"]["grype_database_snapshot_consistent"] is True
     assert report["acceptance"]["grype_database_snapshot_id_consistent"] is True
+
+    for run in runs:
+        run["conclusion"] = "failure"
+        run["job_conclusions"]["gate (Conftest Rego)"] = "failure"
+        observation_path = Path(run["artifact_path"]) / "observation.json"
+        observation = json.loads(observation_path.read_text(encoding="utf-8"))
+        observation["gate"] = {"decision": "BLOCK"}
+        observation_path.write_text(json.dumps(observation), encoding="utf-8")
+    report = e3.build_report({"runs": runs}, tmp_path / "run-index.json")
+    assert report["evidence_status"] == "complete"
+    assert report["profiles"]["cold"]["expected_baseline_gate_block_runs"] == 5
+    assert report["profiles"]["warm"]["expected_baseline_gate_block_runs"] == 5
+
+    runs[0]["job_conclusions"]["image"] = "failure"
+    report = e3.build_report({"runs": runs}, tmp_path / "run-index.json")
+    assert report["evidence_status"] == "partial"
+    assert any("scanner job did not succeed" in item["reason"] for item in report["excluded_runs"])
 
     runs[-1]["head_sha"] = "different-commit"
     observation = json.loads((tmp_path / "warm-4" / "observation.json").read_text(encoding="utf-8"))

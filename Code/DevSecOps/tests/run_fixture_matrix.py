@@ -159,6 +159,7 @@ def duration_seconds(start, end):
 
 def job_timing(run_details):
     jobs = {}
+    conclusions = {}
     scan_intervals = []
     all_intervals = []
     scan_names = {
@@ -169,6 +170,7 @@ def job_timing(run_details):
     }
     for job in run_details.get("jobs") or []:
         name = job.get("name") or f"job-{job.get('databaseId', 'unknown')}"
+        conclusions[name] = job.get("conclusion")
         duration = duration_seconds(job.get("startedAt"), job.get("completedAt"))
         if duration is None:
             continue
@@ -185,6 +187,7 @@ def job_timing(run_details):
 
     return {
         "job_durations_seconds": jobs,
+        "job_conclusions": conclusions,
         "workflow_wall_seconds": elapsed(all_intervals),
         "workflow_runner_minutes": round(sum(jobs.values()) / 60, 3),
         "scan_stage_wall_seconds": elapsed(scan_intervals),

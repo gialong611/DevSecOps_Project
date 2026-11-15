@@ -92,9 +92,6 @@ def build_report(index, index_path):
         if run.get("benchmark_role", "measurement") == "warmup":
             excluded.append({"run_id": run.get("run_id"), "reason": "warm-up run"})
             continue
-        if run.get("conclusion") != "success":
-            excluded.append({"run_id": run.get("run_id"), "reason": "workflow did not succeed"})
-            continue
         observation = load_observation(run, root)
         if not observation or observation.get("evidence_status") != "complete":
             excluded.append({"run_id": run.get("run_id"), "reason": "missing or incomplete observation"})
@@ -117,17 +114,46 @@ def build_report(index, index_path):
         )):
             excluded.append({"run_id": run.get("run_id"), "reason": "missing complete timing metrics"})
             continue
-        required_scan_jobs = {
+        required_pipeline_jobs = {
+            "Run Python tests",
             "Prepare Trivy and Grype vulnerability DB snapshots",
             "Security scans (collection mode)",
             "iac",
             "image",
+            "gate (Conftest Rego)",
         }
-        if not required_scan_jobs.issubset((run.get("job_durations_seconds") or {}).keys()):
-            excluded.append({"run_id": run.get("run_id"), "reason": "missing one or more scanner job durations"})
+        if not required_pipeline_jobs.issubset((run.get("job_durations_seconds") or {}).keys()):
+            excluded.append({"run_id": run.get("run_id"), "reason": "missing one or more pipeline job durations"})
             continue
+        job_conclusions = run.get("job_conclusions") or {}
+        required_success_jobs = required_pipeline_jobs - {"gate (Conftest Rego)"}
+        if not required_pipeline_jobs.issubset(job_conclusions):
+            excluded.append({"run_id": run.get("run_id"), "reason": "missing pipeline job conclusions"})
+            continue
+        if any(job_conclusions.get(name) != "success" for name in required_success_jobs):
+            excluded.append({"run_id": run.get("run_id"), "reason": "a test, DB preparation, or scanner job did not succeed"})
+            continue
+        gate_name = "gate (Conftest Rego)"
+        if run.get("conclusion") == "success" and job_conclusions.get(gate_name) == "success":
+            completion_basis = "workflow_success"
+        else:
+            failed_jobs = {name for name, value in job_conclusions.items() if value == "failure"}
+            statuses_are_expected = all(value in {"success", "failure", "skipped"} for value in job_conclusions.values())
+            expected_gate_block = (
+                run.get("conclusion") == "failure"
+                and failed_jobs == {gate_name}
+                and job_conclusions.get(gate_name) == "failure"
+                and isinstance(observation.get("gate"), dict)
+                and observation["gate"].get("decision") == "BLOCK"
+                and statuses_are_expected
+            )
+            if not expected_gate_block:
+                excluded.append({"run_id": run.get("run_id"), "reason": "workflow failed outside the expected baseline gate block"})
+                continue
+            completion_basis = "expected_baseline_gate_block"
         run = dict(run)
         run["observation"] = observation
+        run["completion_basis"] = completion_basis
         included.append(run)
 
     by_profile = defaultdict(list)
@@ -210,6 +236,9 @@ def build_report(index, index_path):
             "grype_db_snapshots": grype_db_snapshots,
             "grype_db_snapshot_ids": grype_snapshot_ids,
             "grype_db_observation_count": grype_db_observation_count,
+            "expected_baseline_gate_block_runs": sum(
+                run.get("completion_basis") == "expected_baseline_gate_block" for run in records
+            ),
             "workflow_wall_seconds": stats(workflow_wall),
             "workflow_runner_minutes": stats(workflow_runner),
             "scan_stage_wall_seconds": stats(scan_wall),
@@ -272,6 +301,7 @@ def build_report(index, index_path):
         "measurement_definition": {
             "workflow_wall_seconds": "min(job.started_at) to max(job.completed_at) for one workflow_dispatch run",
             "workflow_runner_minutes": "sum of measured durations for all completed jobs divided by 60",
+            "eligible_completion": "successful workflow, or a complete baseline observation where test/DB/scanner jobs succeeded and the only failed job was G2 gate BLOCK",
             "scan_stage_wall_seconds": "vulnerability DB preparation start to last completion among DB preparation and the parallel security-scan, iac, and image jobs",
             "scan_stage_runner_minutes": "sum of vulnerability DB preparation and the three scanner job durations divided by 60",
             "cache_variable": "actions/setup-python pip cache for pytest/runtime dependencies, Semgrep, and Checkov installations",
@@ -299,6 +329,7 @@ def build_report(index, index_path):
             "Cache comparison covers pip package downloads for the test job, Semgrep, and Checkov. Separate versioned immutable Trivy and Grype vulnerability DB caches are shared by both profiles and excluded from the pip-cache variable.",
             "GitHub-hosted runner hardware and external network conditions can vary between runs; report the observed spread.",
             "Wall time is the measured workflow job interval for the dispatch run; release and kind deploy-smoke are skipped on workflow_dispatch.",
+            "A run with a blocked baseline gate is retained only when tests, DB preparation, and all scanner jobs succeeded and the gate is the sole failed job; other workflow failures are excluded.",
             "A complete cache comparison requires one shared Trivy and Grype vulnerability DB snapshot across both profiles; the workflow records both snapshot keys and runtime DB metadata.",
         ],
     }
@@ -310,8 +341,8 @@ def markdown(report):
         "",
         f"**Trạng thái bằng chứng:** `{report['evidence_status']}`",
         "",
-        "| Cache pip | N hợp lệ | Wall median (s) | Wall IQR (s) | Wall p90 (s) | Scan stage median (s) | Scan runner-minutes median |",
-        "|---|---:|---:|---:|---:|---:|---:|",
+        "| Cache pip | N hợp lệ | Lượt G2 chặn baseline | Wall median (s) | Wall IQR (s) | Wall p90 (s) | Scan stage median (s) | Scan runner-minutes median |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for mode in ("cold", "warm"):
         profile = report["profiles"][mode]
@@ -320,7 +351,8 @@ def markdown(report):
         minutes = profile["scan_stage_runner_minutes"]
         fmt = lambda value, suffix="": "chưa đo" if value is None else f"{value}{suffix}"
         lines.append(
-            f"| {mode} | {profile['N']} | {fmt(wall['median'])} | {fmt(wall['iqr'])} | "
+            f"| {mode} | {profile['N']} | {profile['expected_baseline_gate_block_runs']} | "
+            f"{fmt(wall['median'])} | {fmt(wall['iqr'])} | "
             f"{fmt(wall['p90'])} | {fmt(scan['median'])} | {fmt(minutes['median'])} |"
         )
     lines.extend(["", "## Thời gian từng job", "", "| Cache | Job | N | Median (s) | IQR (s) | p90 (s) |", "|---|---|---:|---:|---:|---:|"])
