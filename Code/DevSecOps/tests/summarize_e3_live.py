@@ -289,10 +289,12 @@ def build_report(index, index_path):
     warm_median = profiles["warm"]["workflow_wall_seconds"]["median"]
     delta = None
     if cold_median is not None and warm_median is not None:
+        warm_minus_cold = round(warm_median - cold_median, 2)
+        direction = "nhanh hơn" if warm_minus_cold < 0 else "chậm hơn" if warm_minus_cold > 0 else "ngang nhau"
         delta = {
-            "warm_minus_cold_seconds": round(warm_median - cold_median, 2),
+            "warm_minus_cold_seconds": warm_minus_cold,
             "warm_change_percent": round((warm_median - cold_median) / cold_median * 100, 2) if cold_median else None,
-            "interpretation": "negative means the warm pip-cache profile was faster by the median wall time",
+            "interpretation": f"profile pip cache warm có wall median {direction} profile cold",
         }
 
     return {

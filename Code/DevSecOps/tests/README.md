@@ -39,7 +39,7 @@ phát hiện.
 | E1 – D/C/N | 38/38 fixture D/C và 8/8 N hoàn tất; scanner phát hiện 28/28 lỗi D; 0/10 C có finding mới; 0/8 N có false positive theo rule đích |
 | E2 – G1 | TP/FN/FP/TN = 28/0/0/10; block recall D 100%; false-block C 0%; block khớp rule đích 27/28; G1 chặn nhầm 1/8 N |
 | E2 – G2 | TP/FN/FP/TN = 23/0/0/15; block recall D 100%; false-block C 0%; block khớp rule đích 22/23; G2 chặn 0/8 N |
-| E3 – cold/warm | Mỗi profile N=5, cùng commit và cùng snapshot Trivy/Grype. Wall median 104s/110s, IQR 4s/6s; scan stage 88s/90s; runner-minutes median 3.17/3.25 |
+| E3 – cold/warm | Mỗi profile N=5, cùng commit và cùng snapshot Trivy/Grype. Wall median 104s/110s, IQR 4s/6s; scan stage 88s/90s; tổng runner-minutes median 3.17/3.25 |
 | E4 – image/SBOM | 4.486 → 206 finding; 18 → 0 CRITICAL; SBOM 22.943 → 2.856 gói. Cùng Python 3.13.18, Debian 13.7, amd64, Trivy 0.76.1 và DB snapshot per-scan |
 
 E1/E2 có 2 baseline ghép theo SHA để bao phủ 38 D/C và 8 N. Gate hành động
