@@ -158,7 +158,12 @@ def job_timing(run_details):
     jobs = {}
     scan_intervals = []
     all_intervals = []
-    scan_names = {"Security scans (collection mode)", "iac", "image"}
+    scan_names = {
+        "Prepare Trivy vulnerability DB snapshot",
+        "Security scans (collection mode)",
+        "iac",
+        "image",
+    }
     for job in run_details.get("jobs") or []:
         name = job.get("name") or f"job-{job.get('databaseId', 'unknown')}"
         duration = duration_seconds(job.get("startedAt"), job.get("completedAt"))

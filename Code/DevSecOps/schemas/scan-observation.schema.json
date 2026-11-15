@@ -7,7 +7,7 @@
     "run_attempt", "run_url", "commit", "ref", "event", "recorded_at",
     "cache_mode", "benchmark_role", "scan_execution_mode", "scan_stage_started_at", "scan_stage_ended_at",
     "e4_evidence_status", "e4_requested", "e4_raw_reports",
-    "policy_configured", "tool_versions_configured", "raw_reports", "trivy_runtime", "grype_runtime",
+    "policy_configured", "trivy_db_snapshot_id", "tool_versions_configured", "raw_reports", "trivy_runtime", "grype_runtime",
     "normalized_findings", "gate", "policy_runs", "skipped_scans", "timing", "issues", "interpretation"
   ],
   "properties": {
@@ -42,6 +42,7 @@
     "event": {"type": "string"},
     "recorded_at": {"type": "string", "format": "date-time"},
     "policy_configured": {"type": "string"},
+    "trivy_db_snapshot_id": {"type": "string", "minLength": 1},
     "tool_versions_configured": {
       "type": "object",
       "required": ["semgrep", "gitleaks", "trivy", "checkov", "syft", "grype", "conftest"],

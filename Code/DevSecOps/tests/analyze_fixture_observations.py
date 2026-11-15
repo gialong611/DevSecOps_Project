@@ -176,7 +176,7 @@ def new_warnings_for_policy(observation, baseline, policy):
     if current is None or base is None:
         return None
 
-    def signature(item):
+    def signatures(item):
         rule_id = str(item.get("rule_id") or "")
         affected = tuple(sorted(
             (
@@ -192,22 +192,41 @@ def new_warnings_for_policy(observation, baseline, policy):
         ))
         control_ids = item.get("control_ids")
         if isinstance(control_ids, list) and control_ids:
-            return (rule_id, "controls", tuple(sorted(map(str, control_ids))), affected)
+            # Gate reports aggregate many controls into one warning. Compare
+            # each control/source pair so fixing one control does not make the
+            # changed aggregate look new, while a newly affected resource is
+            # still visible when the same control already warned elsewhere.
+            if affected:
+                return {
+                    (rule_id, "control-finding", str(control_id), identity)
+                    for control_id in control_ids
+                    for identity in affected
+                }
+            return {(rule_id, "control", str(control_id)) for control_id in control_ids}
         advisory_ids = item.get("advisory_ids")
         if isinstance(advisory_ids, list) and advisory_ids:
-            return (
-                rule_id,
-                "advisories",
-                tuple(sorted(map(str, advisory_ids))),
-                str(item.get("severity") or ""),
-                affected,
-            )
-        return (rule_id, str(item.get("message") or ""), str(item.get("file") or ""))
+            if affected:
+                return {
+                    (rule_id, "advisory-finding", str(advisory_id), str(item.get("severity") or ""), identity)
+                    for advisory_id in advisory_ids
+                    for identity in affected
+                }
+            return {
+                (rule_id, "advisory", str(advisory_id), str(item.get("severity") or ""))
+                for advisory_id in advisory_ids
+            }
+        if affected:
+            return {(rule_id, "finding", identity) for identity in affected}
+        return {(rule_id, str(item.get("message") or ""), str(item.get("file") or ""))}
 
-    baseline_signatures = {signature(item) for item in base if isinstance(item, dict)}
+    baseline_signatures = {
+        signature
+        for item in base if isinstance(item, dict)
+        for signature in signatures(item)
+    }
     return [
         item for item in current
-        if isinstance(item, dict) and signature(item) not in baseline_signatures
+        if isinstance(item, dict) and signatures(item) - baseline_signatures
     ]
 
 
@@ -344,6 +363,8 @@ def main() -> int:
         if baseline and observation.get("tool_versions_configured") != base_versions:
             errors.append(f"{case_id} tool versions differ from baseline")
         if baseline:
+            if observation.get("trivy_db_snapshot_id") != baseline.get("trivy_db_snapshot_id"):
+                errors.append(f"{case_id} Trivy database snapshot key differs from baseline")
             ignored_runtime_jobs = ignored_runtime_jobs_for_pair(observation, baseline)
             if comparable_trivy_runtime(observation, ignored_runtime_jobs) != comparable_trivy_runtime(
                 baseline, ignored_runtime_jobs

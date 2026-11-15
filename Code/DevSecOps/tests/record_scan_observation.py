@@ -304,6 +304,7 @@ def main() -> int:
         "scan_stage_started_at": (timing or {}).get("scan_stage_started_at", ""),
         "scan_stage_ended_at": (timing or {}).get("scan_stage_ended_at", ""),
         "policy_configured": os.environ.get("CONTEST_POLICY", ""),
+        "trivy_db_snapshot_id": os.environ.get("TRIVY_DB_SNAPSHOT_ID", ""),
         "tool_versions_configured": {
             tool: os.environ.get(variable, "")
             for tool, variable in TOOL_VERSION_ENV.items()

@@ -117,7 +117,12 @@ def build_report(index, index_path):
         )):
             excluded.append({"run_id": run.get("run_id"), "reason": "missing complete timing metrics"})
             continue
-        required_scan_jobs = {"Security scans (collection mode)", "iac", "image"}
+        required_scan_jobs = {
+            "Prepare Trivy vulnerability DB snapshot",
+            "Security scans (collection mode)",
+            "iac",
+            "image",
+        }
         if not required_scan_jobs.issubset((run.get("job_durations_seconds") or {}).keys()):
             excluded.append({"run_id": run.get("run_id"), "reason": "missing one or more scanner job durations"})
             continue
@@ -165,6 +170,10 @@ def build_report(index, index_path):
             if "vulnerability" in name.casefold()
             and isinstance(meta, dict) and meta.get("updated_at")
         })
+        snapshot_ids = sorted({
+            str(r["observation"].get("trivy_db_snapshot_id"))
+            for r in records if r["observation"].get("trivy_db_snapshot_id")
+        })
         profiles[mode] = {
             "N": len(records),
             "run_ids": [r.get("run_id") for r in records],
@@ -172,6 +181,7 @@ def build_report(index, index_path):
             "tool_version_sets": len(version_sets),
             "tool_version_fingerprints": sorted(version_sets),
             "trivy_db_snapshots": db_snapshots,
+            "trivy_db_snapshot_ids": snapshot_ids,
             "workflow_wall_seconds": stats(workflow_wall),
             "workflow_runner_minutes": stats(workflow_runner),
             "scan_stage_wall_seconds": stats(scan_wall),
@@ -193,7 +203,14 @@ def build_report(index, index_path):
     enough_repeats = all(profiles[mode]["N"] >= MIN_RUNS_PER_PROFILE for mode in ("cold", "warm"))
     cold_db = set(profiles["cold"]["trivy_db_snapshots"])
     warm_db = set(profiles["warm"]["trivy_db_snapshots"])
-    database_snapshots_match = bool(cold_db) and cold_db == warm_db and len(cold_db) == 1
+    cold_snapshot_ids = set(profiles["cold"]["trivy_db_snapshot_ids"])
+    warm_snapshot_ids = set(profiles["warm"]["trivy_db_snapshot_ids"])
+    snapshot_ids_match = (
+        len(cold_snapshot_ids) == 1
+        and cold_snapshot_ids == warm_snapshot_ids
+        and len(warm_snapshot_ids) == 1
+    )
+    database_snapshots_match = bool(cold_db) and cold_db == warm_db and len(cold_db) == 1 and snapshot_ids_match
     complete = same_commit and versions_match and enough_repeats and database_snapshots_match
     cold_median = profiles["cold"]["workflow_wall_seconds"]["median"]
     warm_median = profiles["warm"]["workflow_wall_seconds"]["median"]
@@ -211,8 +228,8 @@ def build_report(index, index_path):
         "measurement_definition": {
             "workflow_wall_seconds": "min(job.started_at) to max(job.completed_at) for one workflow_dispatch run",
             "workflow_runner_minutes": "sum of measured durations for all completed jobs divided by 60",
-            "scan_stage_wall_seconds": "first start to last completion among security-scan, iac, and image jobs",
-            "scan_stage_runner_minutes": "sum of those three scanner job durations divided by 60",
+            "scan_stage_wall_seconds": "Trivy DB preparation start to last completion among DB preparation and the parallel security-scan, iac, and image jobs",
+            "scan_stage_runner_minutes": "sum of Trivy DB preparation and the three scanner job durations divided by 60",
             "cache_variable": "actions/setup-python pip cache for pytest/runtime dependencies, Semgrep, and Checkov installations",
             "execution_mode": "parallel scanner jobs; this experiment does not claim a serial-mode comparison",
             "warmup": "runs marked benchmark_role=warmup are excluded from all statistics",
@@ -226,15 +243,16 @@ def build_report(index, index_path):
             "tool_versions_consistent": versions_match,
             "enough_repeats": enough_repeats,
             "trivy_database_snapshot_consistent": database_snapshots_match,
+            "trivy_database_snapshot_id_consistent": snapshot_ids_match,
         },
         "profiles": profiles,
         "cache_comparison": delta,
         "excluded_runs": excluded,
         "limitations": [
-            "Cache comparison covers pip package downloads for the test job, Semgrep, and Checkov; scanner binaries and Trivy vulnerability databases are not cached by this variable.",
+            "Cache comparison covers pip package downloads for the test job, Semgrep, and Checkov. A separate versioned immutable Trivy vulnerability DB cache is shared by both profiles and excluded from the pip-cache variable.",
             "GitHub-hosted runner hardware and external network conditions can vary between runs; report the observed spread.",
             "Wall time is the measured workflow job interval for the dispatch run; release and kind deploy-smoke are skipped on workflow_dispatch.",
-            "A complete cache comparison requires one shared Trivy vulnerability DB snapshot across both profiles; repeat the study if the DB changes during collection.",
+            "A complete cache comparison requires one shared Trivy vulnerability DB snapshot across both profiles; the workflow records its snapshot key and runtime DB metadata.",
         ],
     }
 
