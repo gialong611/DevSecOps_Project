@@ -49,10 +49,11 @@ warm chậm hơn median 6 giây (5,77%), chưa thấy lợi ích tốc độ tro
 E4 có config digest và Dockerfile SHA-256 cục bộ, chưa có manifest digest registry;
 kết luận áp dụng cho toàn bộ thay đổi Dockerfile/image, không tách riêng từng package.
 
-Chi tiết E1/E2 ở `tests/results/combined-live-study-bb94f33-a0d6a8e/metrics/e1-e2-live/`;
-E3 ở `tests/results/live-study-20261115-bb94f33/metrics/e3-live/`; E4 ở
-`tests/results/e4-live-20261115-a0d6a8e/analysis/`. Các thư mục này là artifact
-kết quả cục bộ, không nằm trong commit mã nguồn. E3 được ghi tại
+Chi tiết E1/E2, E3 và E4 được tổng hợp trong
+`tests/results/metrics/live-evidence-2026-11-15/`. JSON E1/E2 lưu run URL và
+hash cho từng observation; manifest portable lưu 48 nguồn. JSON E3 lưu 10 run ID,
+tool/database snapshot và timing theo job. Các raw report đầy đủ vẫn nằm trong
+artifact của từng run GitHub Actions. E3 được ghi tại
 [run 43720462402](https://github.com/gialong611/DevSecOps_Project/actions/runs/43720462402)
 đến [run 43722229167](https://github.com/gialong611/DevSecOps_Project/actions/runs/43722229167);
 E4 tại [run 43723320787](https://github.com/gialong611/DevSecOps_Project/actions/runs/43723320787/attempts/1).
@@ -72,10 +73,10 @@ E4 tại [run 43723320787](https://github.com/gialong611/DevSecOps_Project/actio
 
 ### Thu thập lại fixture D/C/N và E3
 
-Đẩy workflow/script mới lên GitHub trước; sau đó chạy từ thư mục `Code/DevSecOps`
-trên máy đã đăng nhập `gh auth login` và có quyền dispatch workflow, đọc run và
-tải artifact. Script tự ghim một SHA cho toàn bộ study, tải artifact nhỏ cho
-từng run, ghi URL/run ID/job timing, và hỗ trợ tiếp tục bằng `--resume`.
+Để thu thập study mới, chạy từ thư mục `Code/DevSecOps` trên máy đã đăng nhập
+`gh auth login` và có quyền dispatch workflow, đọc run và tải artifact. Script
+tự ghim một SHA cho toàn bộ study, tải artifact nhỏ cho từng run, ghi URL/run
+ID/job timing, và hỗ trợ tiếp tục bằng `--resume`.
 
 ```bash
 # Baseline + 28 D + 10 C + 8 N, sau đó tạo báo cáo live E1/E2.
@@ -101,9 +102,9 @@ cả ba job scanner thành công và gate G2 là job duy nhất bị chặn; cá
 vẫn bị loại. E3 đo pip cache trong khi scanner jobs vẫn chạy song song; không
 diễn giải như so sánh tuần tự.
 
-Sau study, xem `tests/results/live-study/metrics/e1-e2-live/` và
-`tests/results/e3-live/`, kiểm tra URL từng case trong `run-index.json`, rồi mới
-chuyển kết quả đã xác minh sang DOCX. PPTX không thuộc phạm vi cập nhật.
+Sau study, kiểm tra JSON/Markdown tổng hợp, URL từng case trong `run-index.json`
+và hash artifact trước khi cập nhật báo cáo. DOCX/PPTX không thuộc phạm vi cập
+nhật của bản code này.
 
 ### Phân tích artifact E4 đã tải
 

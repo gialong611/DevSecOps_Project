@@ -1,8 +1,9 @@
 # Trạng thái hoàn thiện đề tài 21
 
 Cập nhật: 2026-11-15. Báo cáo này phân biệt số đo từ scanner/CI trực tiếp với
-dữ liệu mô phỏng. Các file raw lớn nằm trong thư mục kết quả cục bộ và không
-được commit; bảng dưới đây ghi số đo, mã commit và URL để truy vết.
+dữ liệu mô phỏng. Bản tổng hợp JSON/Markdown và manifest đã được commit tại
+`Code/DevSecOps/tests/results/metrics/live-evidence-2026-11-15/`; raw reports
+theo từng lượt được giữ trong artifact GitHub Actions của các run nguồn.
 
 ## Tóm tắt kết quả
 
@@ -16,18 +17,20 @@ dữ liệu mô phỏng. Các file raw lớn nằm trong thư mục kết quả 
 ## Bằng chứng và giới hạn
 
 - E1/E2: tổng hợp 48 observation (2 baseline theo SHA, 38 D/C và 8 N), tool
-  versions và snapshot DB ghim nhất quán. Báo cáo live ở
-  `Code/DevSecOps/tests/results/combined-live-study-bb94f33-a0d6a8e/metrics/e1-e2-live/`;
-  nguồn và run URL nằm trong `source-manifest.json` và JSON cạnh Markdown.
+  versions và snapshot DB ghim nhất quán. Báo cáo, JSON từng fixture và manifest
+  portable nằm tại
+  `Code/DevSecOps/tests/results/metrics/live-evidence-2026-11-15/`.
 - E3: [10 lượt đo trên cùng commit](https://github.com/gialong611/DevSecOps_Project/actions/runs/43720462402)
   đến [run cuối](https://github.com/gialong611/DevSecOps_Project/actions/runs/43722229167),
   một warm-up bị loại. So sánh chỉ thay đổi pip cache; scanner jobs tiếp tục chạy
-  song song. Vì vậy kết luận giới hạn ở profile này và không chứng minh serial-vs-parallel.
+  song song. Đủ 10 run ID, metadata và thống kê theo job được lưu trong JSON E3
+  ở thư mục bằng chứng đã commit. Vì vậy kết luận giới hạn ở profile này và không
+  chứng minh serial-vs-parallel.
 - E4: [GitHub Actions run 43723320787](https://github.com/gialong611/DevSecOps_Project/actions/runs/43723320787/attempts/1).
   Hai image có config digest và Dockerfile SHA-256; chưa có registry manifest
   digest vì image chỉ được scan cục bộ. Kết quả được đánh `comparable`, DB snapshot
   được xác minh trước/sau từng lần scan. Số liệu SBOM/finding lấy lại từ raw Trivy
-  và Syft report.
+  và Syft report; bản JSON/Markdown E4 đã commit trong thư mục bằng chứng.
 - E1/E2 và E3 đã ghi nhận G2 baseline bị BLOCK do finding Gitleaks trong lịch sử
   repo. Pipeline test, DB và scanner vẫn hoàn thành ở các lượt E3 được chấp nhận;
   trạng thái gate không bị che giấu. Chủ repo cần xác minh, thu hồi credential nếu
