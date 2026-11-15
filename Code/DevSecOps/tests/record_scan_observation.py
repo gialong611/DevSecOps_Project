@@ -145,6 +145,10 @@ def main() -> int:
         if error or not isinstance(report, dict):
             issues.append(f"invalid {policy} experiment gate report: {error or 'not an object'}")
             continue
+        if not isinstance(report.get("blockers"), list):
+            issues.append(f"{policy} experiment gate report has no blockers array")
+        if not isinstance(report.get("warnings"), list):
+            issues.append(f"{policy} experiment gate report has no warnings array")
         policy_runs.append({
             "policy": policy,
             "decision": report.get("decision"),
@@ -155,7 +159,32 @@ def main() -> int:
                     "message": item.get("message"),
                     "file": item.get("file"),
                 }
-                for item in report.get("blockers", [])
+                for item in report.get("blockers", []) if isinstance(report.get("blockers"), list)
+                if isinstance(item, dict)
+            ],
+            "warnings": [
+                {
+                    "rule_id": item.get("rule_id"),
+                    "message": item.get("message"),
+                    "file": item.get("file"),
+                    "severity": item.get("severity"),
+                    "advisory_ids": item.get("advisory_ids", []),
+                    "control_ids": item.get("control_ids", []),
+                    "affected_findings": [
+                        {
+                            "tool": affected.get("tool"),
+                            "category": affected.get("category"),
+                            "title": affected.get("title"),
+                            "file": affected.get("file"),
+                            "resource": affected.get("resource"),
+                            "package": affected.get("package"),
+                            "installed_version": affected.get("installed_version"),
+                        }
+                        for affected in item.get("affected_findings", [])
+                        if isinstance(affected, dict)
+                    ],
+                }
+                for item in report.get("warnings", []) if isinstance(report.get("warnings"), list)
                 if isinstance(item, dict)
             ],
         })
@@ -229,6 +258,7 @@ def main() -> int:
     grype_skipped = "grype-image" in skipped_scans
     grype_runtime = {
         "grype_version": grype_descriptor.get("version") or os.environ.get("GRYPE_VERSION") or None,
+        "db_snapshot_id": os.environ.get("GRYPE_DB_SNAPSHOT_ID", ""),
         "image_scan_skipped": grype_skipped,
         "db": {
             "schema_version": grype_db_status.get("schemaVersion"),
@@ -243,6 +273,8 @@ def main() -> int:
             issues.append(f"invalid Grype image report: {grype_error or 'not an object'}")
         if grype_runtime["grype_version"] != os.environ.get("GRYPE_VERSION"):
             issues.append("Grype runtime version differs from configured version")
+        if not grype_runtime["db_snapshot_id"]:
+            issues.append("Grype database snapshot ID was not configured")
         if not grype_db_status.get("built") or not grype_db_status.get("schemaVersion"):
             issues.append("Grype vulnerability database metadata was not captured")
 
@@ -255,7 +287,7 @@ def main() -> int:
         run_url += f"/attempts/{attempt}"
 
     record = {
-        "schema_version": 4,
+        "schema_version": 6,
         "evidence_status": "complete" if not issues and run_url else "partial",
         "sample_type": "repository-baseline" if fixture_id == "baseline" else "patch-fixture",
         "fixture_id": fixture_id,
@@ -275,6 +307,7 @@ def main() -> int:
         "scan_stage_started_at": (timing or {}).get("scan_stage_started_at", ""),
         "scan_stage_ended_at": (timing or {}).get("scan_stage_ended_at", ""),
         "policy_configured": os.environ.get("CONTEST_POLICY", ""),
+        "trivy_db_snapshot_id": os.environ.get("TRIVY_DB_SNAPSHOT_ID", ""),
         "tool_versions_configured": {
             tool: os.environ.get(variable, "")
             for tool, variable in TOOL_VERSION_ENV.items()

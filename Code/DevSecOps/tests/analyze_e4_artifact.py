@@ -19,6 +19,10 @@ RAW_FILES = {
     "runtime": "experiment/trivy-runtime-image.json",
     "image_timing": "timing/image.json",
     "e4_summary": "e4/e4_image_remediation.json",
+    "trivy_runtime_before_before_scan": "raw/e4/trivy-runtime-before-before-scan.json",
+    "trivy_runtime_before_after_scan": "raw/e4/trivy-runtime-before-after-scan.json",
+    "trivy_runtime_after_before_scan": "raw/e4/trivy-runtime-after-before-scan.json",
+    "trivy_runtime_after_after_scan": "raw/e4/trivy-runtime-after-after-scan.json",
 }
 
 
@@ -68,11 +72,24 @@ def image_metadata(document: dict) -> dict:
 
 
 def vulnerability_db(runtime: dict) -> dict | None:
+    if not isinstance(runtime, dict):
+        return None
     databases = runtime.get("databases") or {}
     for name, value in databases.items():
         if "vulnerability" in name.casefold() and isinstance(value, dict):
             return value
     return None
+
+
+def normalized_vulnerability_db(runtime: dict) -> dict | None:
+    database = vulnerability_db(runtime)
+    if not database or not database.get("version") or not database.get("updated_at"):
+        return None
+    return {
+        key: database.get(key)
+        for key in ("version", "updated_at", "next_update")
+        if database.get(key) is not None
+    }
 
 
 def analyze(artifact_root: Path, gate_artifact_root: Path | None = None) -> dict:
@@ -86,6 +103,15 @@ def analyze(artifact_root: Path, gate_artifact_root: Path | None = None) -> dict
         raise ValueError("E4 summary does not contain live results")
     runtime = load_json(paths["runtime"])
     timing = load_json(paths["image_timing"])
+    scan_runtime_records = {
+        key: load_json(paths[key])
+        for key in (
+            "trivy_runtime_before_before_scan",
+            "trivy_runtime_before_after_scan",
+            "trivy_runtime_after_before_scan",
+            "trivy_runtime_after_after_scan",
+        )
+    }
     if not timing.get("run_id") or not timing.get("run_url") or not timing.get("commit"):
         raise ValueError("image timing artifact is missing run ID, URL, or commit")
 
@@ -116,7 +142,9 @@ def analyze(artifact_root: Path, gate_artifact_root: Path | None = None) -> dict
             raise ValueError(f"{side} Trivy severity totals differ from the summary")
         if measured_sbom != live[side].get("sbom_packages"):
             raise ValueError(f"{side} SBOM component count differs from the summary")
-        live[side]["image"] = image_metadata(scan_docs[side])
+        image_context = dict(live[side].get("image") or {})
+        image_context.update(image_metadata(scan_docs[side]))
+        live[side]["image"] = image_context
         live[side]["vulnerabilities_total"] = sum(measured_counts.values())
         sbom_metadata = sboms[side].get("metadata") or {}
         live[side]["sbom"] = {
@@ -132,10 +160,32 @@ def analyze(artifact_root: Path, gate_artifact_root: Path | None = None) -> dict
     same_python = bool(before["python_version"] and before["python_version"] == after["python_version"])
     same_os = bool(before["os"] and before["os"] == after["os"])
     same_arch = bool(before["architecture"] and before["architecture"] == after["architecture"])
-    # Run 13 recorded one Trivy DB snapshot for the image job, but did not
-    # capture the database identity immediately around each E4 scan.
     job_db_snapshot_recorded = bool(db and db.get("updated_at"))
-    per_scan_db_snapshot_verified = False
+    job_db_snapshot = normalized_vulnerability_db(runtime)
+    scan_db_snapshots = {
+        key.removeprefix("trivy_runtime_"): normalized_vulnerability_db(record)
+        for key, record in scan_runtime_records.items()
+    }
+    scan_trivy_versions = {
+        record.get("trivy_version") for record in scan_runtime_records.values()
+        if isinstance(record, dict) and record.get("trivy_version")
+    }
+    snapshot_fingerprints = {
+        json.dumps(snapshot, sort_keys=True)
+        for snapshot in scan_db_snapshots.values()
+        if snapshot is not None
+    }
+    per_scan_db_snapshot_verified = (
+        len(scan_db_snapshots) == 4
+        and all(snapshot is not None for snapshot in scan_db_snapshots.values())
+        and len(snapshot_fingerprints) == 1
+        and job_db_snapshot is not None
+        and json.dumps(job_db_snapshot, sort_keys=True) in snapshot_fingerprints
+    )
+    same_trivy_version = (
+        len(scan_trivy_versions) == 1
+        and runtime.get("trivy_version") in scan_trivy_versions
+    )
     confounds = []
     for label, left, right in (
         ("Python version", before["python_version"], after["python_version"]),
@@ -145,21 +195,25 @@ def analyze(artifact_root: Path, gate_artifact_root: Path | None = None) -> dict
         if left != right:
             confounds.append({"dimension": label, "before": left, "after": right})
 
-    comparable = all((same_python, same_os, same_arch, per_scan_db_snapshot_verified))
+    comparable = all((same_python, same_os, same_arch, same_trivy_version, per_scan_db_snapshot_verified))
     live["comparability"] = {
         "same_application_build_context": True,
         "same_python_version": same_python,
         "same_os_release": same_os,
         "same_architecture": same_arch,
+        "same_trivy_version": same_trivy_version,
         "shared_trivy_database_snapshot": per_scan_db_snapshot_verified,
         "job_level_trivy_snapshot_recorded": job_db_snapshot_recorded,
         "per_scan_trivy_snapshot_verified": per_scan_db_snapshot_verified,
         "confounds": confounds,
         "causal_attribution_allowed": comparable,
         "interpretation": (
-            "Run 13 shows a real before/after delta, but Python versions differ and the Trivy DB was "
-            "recorded once at job level rather than independently around each scan. Treat the delta "
-            "as descriptive; do not attribute it solely to Dockerfile remediation."
+            "All four raw per-scan records match the image-job Trivy DB snapshot and tool version; "
+            "the before/after images also match Python, OS, and architecture. The aggregate delta "
+            "is comparable for the Dockerfile/image change as a whole."
+            if comparable else
+            "Treat the before/after delta as descriptive because one or more runtime, platform, "
+            "tool-version, or per-scan vulnerability-database comparisons could not be verified."
         ),
     }
     live["evidence_status"] = "comparable" if comparable else "limited"
@@ -171,10 +225,17 @@ def analyze(artifact_root: Path, gate_artifact_root: Path | None = None) -> dict
         "fixture_id": timing.get("fixture_id", "baseline"),
         "tool_versions": {
             "trivy": runtime.get("trivy_version"),
-            "syft": configured_tools.get("syft"),
+            "syft": configured_tools.get("syft") or (
+                (summary.get("live", {}).get("provenance", {}).get("tool_versions") or {}).get("syft")
+            ),
         },
         "trivy_vulnerability_database": db,
-        "trivy_database_snapshot_scope": "one image-job snapshot; not captured per E4 scan",
+        "trivy_database_snapshots_per_scan": scan_db_snapshots,
+        "trivy_database_snapshot_scope": (
+            "four raw records verified: before/after each E4 image scan"
+            if per_scan_db_snapshot_verified else
+            "per-scan records are missing or do not match the image-job snapshot"
+        ),
     }
     live["raw_artifact_sha256"] = {
         key: hash_file(path)

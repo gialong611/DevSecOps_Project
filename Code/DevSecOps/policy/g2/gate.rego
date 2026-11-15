@@ -21,6 +21,8 @@ iac_block_controls := {
 	"CKV2_GHA_1", # token write-all
 	"CKV_GHA_2", # script injection trong run
 	"DSEC_GHA_001", # action reference không ghim SHA 40 ký tự
+	"DSEC_GHA_002", # quyền GitHub Actions write-all
+	"DSEC_GHA_003", # nội suy github.event không tin cậy vào run
 }
 
 # Mức WARN có chủ đích cho các thiếu sót cần xem xét nhưng không đủ cơ sở
@@ -146,6 +148,13 @@ deny contains msg if {
 }
 
 # ---- Cảnh báo, không chặn ----
+warn contains msg if {
+	some f in input.findings
+	f.category == "sast"
+	f.severity == "MEDIUM"
+	msg := sprintf("WARN SAST MEDIUM cần đánh giá: %s", [f.rule_id])
+}
+
 warn contains msg if {
 	some f in input.findings
 	f.category in {"sca", "image"}

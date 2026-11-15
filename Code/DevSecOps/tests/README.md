@@ -28,30 +28,65 @@ Pipeline được coi là bị tê liệt khi dính 1 trong các dấu hiệu sa
 Pipeline chạy quá 10 phút.
 1 PR nhận hơn 20 cảnh báo.
 
-## Mục 3. Trạng thái nguồn dữ liệu đang commit
+## Mục 3. Kết quả thực nghiệm live
 
-- Artifact baseline mới nhất đã đọc là [GitHub Actions run ID 43606451482](https://github.com/gialong611/DevSecOps_Project/actions/runs/43606451482/attempts/1), commit `ff6f7c437655a59c1ee96cce89d47a5fed253ef3`, schema observation v3, fixture `baseline`, event `push`. Bản trích mới nằm ở `tests/results/metrics/ci_baseline_latest.json`; run trước được lưu tại `ci_baseline_run_43599931890.json`, dữ liệu cũ hơn tại `ci_baseline_legacy_history.json`.
-- Artifact ghi gate G2 `WARN`, pass, 292 finding chuẩn hóa, 0 blocker, 20 warning. Có 18 warning HIGH và 2 MEDIUM; 20/20 liên kết được tới 101 finding nguồn. Cảnh báo IaC tổng hợp liên kết 40 finding thuộc 17 control ID.
-- GitHub run #19 hoàn tất `success`; bảy job Python tests, security-scan, IaC, image, gate, release và deploy-smoke đều thành công. Branch protection chưa xác minh; GitHub API không cấp quyền đọc endpoint này trong phiên hiện tại.
-- Trivy config có 11 misconfiguration (2 HIGH, 6 MEDIUM, 3 LOW); Checkov có 77 finding. `CKV_AWS_382` và `AWS-0104` không còn xuất hiện.
-- E3 có một observation: security-scan 29s, IaC 41s, image 114s; đường găng scan song song 114s, tổng runner 3.067 phút. Đây chỉ là một cold run, không đủ so sánh cache hoặc suy rộng ổn định.
-- E4 được bỏ qua; SBOM phát hành ghi GHCR digest `sha256:ca8c642b7949c97182e645effee49384413c4d9fdc31b511d3e650d1997de68a`, trong khi báo cáo image scan gắn tag cục bộ. Hai SBOM trùng tập PURL nhưng chưa truy vết scan tới digest phát hành; không coi đây là so sánh trước/sau.
-- Artifact mới xác nhận policy G2 tổng hợp IaC/K8s warning và report bridge liên kết rule ID về finding nguồn. D/C/N live matrix, E3 đủ 5 cold + 5 warm, PR block/pass và branch protection vẫn chưa có bằng chứng hoàn chỉnh.
-- Các số liệu run #13/#14 nêu ở hồ sơ cũ là lịch sử. `findings.csv`, `decisions.csv` và `runs.csv` vẫn là dữ liệu thiết kế/thăm dò; chúng không chứng minh scanner đã phát hiện lỗi theo từng fixture.
-- D/C/N live matrix, E3 đủ 5 cold + 5 warm, PR block/pass và branch protection vẫn chưa có bằng chứng hoàn chỉnh.
-- E4 T0 KEV/EPSS là mô phỏng. Chỉ được gọi là live khi có hai báo cáo Trivy, hai SBOM Syft, tool version, Python/OS/architecture và snapshot vulnerability DB xác nhận giống nhau; nếu không, báo `limited`/`incomplete` và không quy kết delta.
-- Observation schema tại `schemas/scan-observation.schema.json` ghi run URL, commit, phiên bản tool, timing, cache profile, raw report SHA-256, quyết định G0/G1/G2 và trạng thái E4 riêng. Observation E1–E3 không bị đánh `partial` chỉ vì E4 được chủ động bỏ qua.
+Các kết quả dưới đây được tính từ raw scanner reports và observation của GitHub
+Actions, không dùng `findings.csv`, `decisions.csv` hay `runs.csv` làm thay dữ liệu
+phát hiện.
+
+| Đo lường | Kết quả |
+|---|---|
+| E1 – D/C/N | 38/38 fixture D/C và 8/8 N hoàn tất; scanner phát hiện 28/28 lỗi D; 0/10 C có finding mới; 0/8 N có false positive theo rule đích |
+| E2 – G1 | TP/FN/FP/TN = 28/0/0/10; block recall D 100%; false-block C 0%; block khớp rule đích 27/28; G1 chặn nhầm 1/8 N |
+| E2 – G2 | TP/FN/FP/TN = 23/0/0/15; block recall D 100%; false-block C 0%; block khớp rule đích 22/23; G2 chặn 0/8 N |
+| E3 – cold/warm | Mỗi profile N=5, cùng commit và cùng snapshot Trivy/Grype. Wall median 104s/110s, IQR 4s/6s; scan stage 88s/90s; tổng runner-minutes median 3.17/3.25 |
+| E4 – image/SBOM | 4.486 → 206 finding; 18 → 0 CRITICAL; SBOM 22.943 → 2.856 gói. Cùng Python 3.13.18, Debian 13.7, amd64, Trivy 0.76.1 và DB snapshot per-scan |
+
+E1/E2 có 2 baseline ghép theo SHA để bao phủ 38 D/C và 8 N. Gate hành động
+đúng kỳ vọng 38/38; tuy nhiên có blocker trùng mức release nhưng không khớp
+rule/CVE mục tiêu (G1 27/28, G2 22/23). E3 dùng pip cache là biến độc lập;
+warm chậm hơn median 6 giây (5,77%), chưa thấy lợi ích tốc độ trong cấu hình đo.
+E4 có config digest và Dockerfile SHA-256 cục bộ, chưa có manifest digest registry;
+kết luận áp dụng cho toàn bộ thay đổi Dockerfile/image, không tách riêng từng package.
+
+Chi tiết E1/E2, E3 và E4 được tổng hợp trong
+`tests/results/metrics/live-evidence-2026-11-15/`. JSON E1/E2 lưu run URL và
+hash cho từng observation; manifest portable lưu 48 nguồn. JSON E3 lưu 10 run ID,
+tool/database snapshot và timing theo job. Các raw report đầy đủ vẫn nằm trong
+artifact của từng run GitHub Actions. E3 được ghi tại
+[run 43720462402](https://github.com/gialong611/DevSecOps_Project/actions/runs/43720462402)
+đến [run 43722229167](https://github.com/gialong611/DevSecOps_Project/actions/runs/43722229167);
+E4 tại [run 43723320787](https://github.com/gialong611/DevSecOps_Project/actions/runs/43723320787/attempts/1).
+
+### Giới hạn cần giữ rõ trong báo cáo
+
+- Các lượt baseline G2 bị BLOCK do finding Gitleaks trong lịch sử repo; các lượt E3
+  chỉ được nhận nếu tests, DB và scanners đều thành công và G2 là job duy nhất BLOCK.
+  Cần chủ repo xác minh/thu hồi secret nếu còn hiệu lực và xử lý lịch sử; không đưa
+  giá trị secret vào tài liệu.
+- PR #1 có lượt thử block/pass có kiểm soát: D01 SQL injection bị gate G2 chặn
+  tại [run 43729980295](https://github.com/gialong611/DevSecOps_Project/actions/runs/43729980295);
+  sau khi hoàn nguyên fixture, [run 43730231762](https://github.com/gialong611/DevSecOps_Project/actions/runs/43730231762)
+  pass. Xem `tests/results/metrics/live-evidence-2026-11-15/PR_GATE_EVIDENCE.md`.
+- `main` chưa có branch protection/ruleset và PR chưa có required check. Bằng
+  chứng này xác nhận hành vi gate trên PR, chưa chứng minh GitHub ngăn merge theo
+  required status check. Repo admin cần yêu cầu `Run Python tests` và
+  `gate (Conftest Rego)` trên `main`.
+- T0 KEV/EPSS trong E4 là mô phỏng, không phải snapshot lịch sử CISA/FIRST.
+- Observation schema v6 tại `schemas/scan-observation.schema.json` lưu run URL,
+  commit, tool versions, timing, cache profile, report SHA-256, quyết định G0/G1/G2
+  và provenance snapshot Trivy/Grype.
 
 ### Thu thập lại fixture D/C/N và E3
 
-Đẩy workflow/script mới lên GitHub trước; sau đó chạy từ thư mục `Code/DevSecOps`
-trên máy đã đăng nhập `gh auth login` và có quyền dispatch workflow, đọc run và
-tải artifact. Script tự ghim một SHA cho toàn bộ study, tải artifact nhỏ cho
-từng run, ghi URL/run ID/job timing, và hỗ trợ tiếp tục bằng `--resume`.
+Để thu thập study mới, chạy từ thư mục `Code/DevSecOps` trên máy đã đăng nhập
+`gh auth login` và có quyền dispatch workflow, đọc run và tải artifact. Script
+tự ghim một SHA cho toàn bộ study, tải artifact nhỏ cho từng run, ghi URL/run
+ID/job timing, và hỗ trợ tiếp tục bằng `--resume`.
 
 ```bash
 # Baseline + 28 D + 10 C + 8 N, sau đó tạo báo cáo live E1/E2.
-python tests/run_fixture_matrix.py --ref main --out-dir tests/results/live-study
+python tests/run_fixture_matrix.py --ref main --out-dir tests/results/live-study --parallelism 4
 
 # Ít nhất 5 lượt mỗi profile; chạy warm-up trước và loại khỏi thống kê.
 python tests/run_fixture_matrix.py --ref main --skip-fixtures \
@@ -64,15 +99,18 @@ python tests/run_fixture_matrix.py --ref main --skip-fixtures \
   --out-dir tests/results/e3-live --resume
 ```
 
-Fixture matrix mặc định gồm 47 lượt (baseline + 46 mẫu); E3 thêm 11 lượt
-(1 warm-up + 5 cold + 5 warm). Nếu Trivy DB hoặc tool versions khác baseline,
-analyzer E1/E2 sẽ báo lỗi và không gộp số liệu. Chạy lại nhóm trong cùng cửa sổ
-snapshot rồi mới công bố recall/false-positive/false-block. E3 hiện đo pip cache
-trong khi scanner jobs vẫn chạy song song; không diễn giải như so sánh tuần tự.
+Fixture matrix mặc định gồm 47 lượt (baseline + 46 mẫu); baseline chạy trước,
+sau đó D/C/N chạy song song tối đa 4 workflow. E3 thêm 11 lượt (1 warm-up + 5
+cold + 5 warm). Workflow dùng cache DB Trivy/Grype có snapshot ID cố định; nếu
+snapshot hoặc tool version khác baseline, analyzer E1/E2/E3 đánh dấu chưa đủ và
+không gộp số liệu. E3 chỉ giữ run thành công, hoặc run baseline mà test, DB và
+cả ba job scanner thành công và gate G2 là job duy nhất bị chặn; các lỗi khác
+vẫn bị loại. E3 đo pip cache trong khi scanner jobs vẫn chạy song song; không
+diễn giải như so sánh tuần tự.
 
-Sau study, xem `tests/results/live-study/metrics/e1-e2-live/` và
-`tests/results/e3-live/`, kiểm tra URL từng case trong `run-index.json`, rồi mới
-chuyển kết quả đã xác minh sang DOCX. PPTX không thuộc phạm vi cập nhật.
+Sau study, kiểm tra JSON/Markdown tổng hợp, URL từng case trong `run-index.json`
+và hash artifact trước khi cập nhật báo cáo. DOCX/PPTX không thuộc phạm vi cập
+nhật của bản code này.
 
 ### Phân tích artifact E4 đã tải
 

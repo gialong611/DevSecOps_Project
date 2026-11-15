@@ -54,6 +54,12 @@ test_g2_block_sast_high if {
 	count(deny) > 0 with input as base([{"category": "sast", "rule_id": "python.sqli", "severity": "HIGH", "location": {"file": "main.py"}}])
 }
 
+test_g2_warn_sast_medium_not_block if {
+	inp := base([{"category": "sast", "rule_id": "python.path-traversal", "severity": "MEDIUM", "location": {"file": "main.py"}}])
+	count(deny) == 0 with input as inp
+	count(warn) > 0 with input as inp
+}
+
 test_g2_sast_low_not_block if {
 	count(deny) == 0 with input as base([{"category": "sast", "rule_id": "python.weak-hash", "severity": "LOW", "location": {"file": "main.py"}}])
 }

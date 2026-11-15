@@ -130,6 +130,29 @@ def test_parse_checkov_none_and_bad():
         nf.parse_checkov({"results": {"failed_checks": "not-a-list"}})
 
 
+def test_parse_conftest_workflow_custom_d26_d27_rules():
+    report = {
+        "results": [
+            {
+                "filename": "../../.github/workflows/ci.yml",
+                "failures": [
+                    {"msg": "DSEC_GHA_002: workflow-level permissions write-all"},
+                    {"msg": "DSEC_GHA_003: untrusted github.event interpolation"},
+                ],
+            }
+        ]
+    }
+
+    findings = nf.parse_conftest_workflow(report)
+
+    assert [finding["rule_id"] for finding in findings] == [
+        "DSEC_GHA_002", "DSEC_GHA_003"
+    ]
+    assert all(finding["tool"] == "conftest" for finding in findings)
+    assert all(finding["category"] == "workflow" for finding in findings)
+    assert all(finding["severity"] == "HIGH" for finding in findings)
+
+
 # ────────────────────────────────────────────────────────────
 # normalize_findings: parser Trivy config
 # ────────────────────────────────────────────────────────────

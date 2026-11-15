@@ -1,48 +1,47 @@
-id,type,category,file,rule_or_cve,expected_tool,severity,description,author,control_for
-D01,defect,sast,src/app/main.py,sql-injection,semgrep,HIGH,SQL injection via string concatenation,Duy
-D02,defect,sast,src/app/main.py,hardcoded-secret,semgrep,HIGH,Hardcoded password in source code,Duy
-D03,defect,sast,src/app/main.py,command-injection,semgrep,HIGH,Command injection via user input,Duy
-D04,defect,sast,src/app/main.py,path-traversal,semgrep,MEDIUM,Path traversal vulnerability,Duy
-D05,defect,sast,src/app/main.py,insecure-deserialization,semgrep,HIGH,Insecure deserialization using pickle,Duy
-D06,defect,sast,src/app/main.py,weak-crypto,semgrep,MEDIUM,MD5 used for password hashing,Duy
-D07,defect,secret,.github/workflows/ci.yml,generic-api-key,gitleaks,HIGH,API key hardcoded in workflow file,Duy
-D08,defect,secret,src/app/main.py,generic-secret,gitleaks,HIGH,Secret token hardcoded in application,Duy
-D09,defect,sca,src/requirements.txt,CVE-2024-35195,trivy,MEDIUM,Requests Session TLS verification state persists after verify=False,Duy
-D10,defect,sca,src/requirements.txt,CVE-2023-45803,trivy,MEDIUM,urllib3 request body retained across selected redirects,Duy
-D11,defect,sca,src/requirements.txt,CVE-2024-24762,trivy,HIGH,FastAPI form parsing ReDoS in versions before 0.109.1,Duy
-D12,defect,image,Code/DevSecOps/Dockerfile,CKV_DOCKER_7,checkov,HIGH,Base image uses mutable latest tag,Tài
-D13,defect,image,Code/DevSecOps/Dockerfile,CKV_DOCKER_3,checkov,HIGH,Container runs as root user,Tài
-D14,defect,image,Code/DevSecOps/Dockerfile,CKV_DOCKER_4,checkov,HIGH,ADD instruction fetches remote URL,Tài
-D15,defect,image,Code/DevSecOps/Dockerfile,CKV_DOCKER_1,checkov,HIGH,SSH server installed and port 22 exposed,Tài
-D16,defect,iac,Code/DevSecOps/infra/security_groups.tf,CKV_AWS_24,checkov,HIGH,Security group opens SSH port 22 to 0.0.0.0/0,Tài
-D17,defect,iac,Code/DevSecOps/infra/iam.tf,CKV_AWS_1,checkov,CRITICAL,IAM policy uses wildcard actions and resources,Tài
-D18,defect,iac,Code/DevSecOps/infra/s3.tf,CKV_AWS_53,checkov,HIGH,S3 bucket public access block disabled,Tài
-D19,defect,iac,Code/DevSecOps/infra/rds.tf,CKV_AWS_17,checkov,HIGH,RDS instance is publicly accessible,Tài
-D20,defect,iac,Code/DevSecOps/infra/s3.tf,CKV_AWS_21,checkov,MEDIUM,S3 bucket versioning and logging disabled,Tài
-D21,defect,k8s,Code/DevSecOps/deploy/deployment.yaml,CKV_K8S_16,checkov,HIGH,Container runs in privileged mode,Tài
-D22,defect,k8s,Code/DevSecOps/deploy/deployment.yaml,CKV_K8S_11,checkov,MEDIUM,Container has no resource limits,Tài
-D23,defect,k8s,Code/DevSecOps/deploy/deployment.yaml,CKV_K8S_43,checkov,MEDIUM,Container image uses latest tag instead of digest,Tài
-D24,defect,k8s,Code/DevSecOps/deploy/serviceaccount.yaml,KSV-0111,trivy,HIGH,ServiceAccount bound to cluster-admin ClusterRole,Tài
-D25,defect,k8s,Code/DevSecOps/deploy/deployment.yaml,KSV-0109,trivy,HIGH,Password stored in ConfigMap plaintext,Tài
-D26,defect,workflow,.github/workflows/ci.yml,CKV2_GHA_1,checkov,HIGH,GitHub Actions workflow token has write-all permissions,Duy
-D27,defect,workflow,.github/workflows/ci.yml,CKV_GHA_2,checkov,HIGH,GitHub Actions run step vulnerable to script injection,Duy
-D28,defect,workflow,.github/workflows/ci.yml,DSEC_GHA_001,conftest,HIGH,GitHub Actions workflow uses mutable action reference,Duy
-C01,clean,sast,src/app/main.py,,semgrep,,,Long
-C02,clean,sast,src/app/main.py,,semgrep,,,Long
-C03,clean,secret,src/app/main.py,,gitleaks,,,Long
-C04,clean,sca,src/requirements.txt,,trivy,,,Long
-C05,clean,iac,Code/DevSecOps/infra/security_groups.tf,,checkov,,,Long
-C06,clean,iac,Code/DevSecOps/infra/iam.tf,,checkov,,,Long
-C07,clean,iac,Code/DevSecOps/infra/s3.tf,,checkov,,,Long
-C08,clean,k8s,Code/DevSecOps/deploy/deployment.yaml,,checkov,,,Long
-C09,clean,image,Code/DevSecOps/Dockerfile,,checkov,,,Long
-C10,clean,workflow,.github/workflows/ci.yml,,checkov,,,Long
-N01,control,sast,src/app/main.py,sql-injection-param,semgrep,INFO,Parameterized SQL query - control for D01,Long,D01
-N02,control,sast,src/test/test_main.py,hardcoded-secret-test,semgrep,INFO,Mock token in unit test - control for D02,Long,D02
-N03,control,secret,src/app/main.py,env-var-secret,gitleaks,INFO,Secret loaded via os.environ - control for D08,Long,D08
-N04,control,sca,src/requirements.txt,safe-dependency,trivy,INFO,Pinned secure library version without CVE - control for D09-D11,Long,D09;D10;D11
-N05,control,image,Code/DevSecOps/Dockerfile,CKV_DOCKER_3_ctrl,checkov,INFO,Explicit non-root USER directive - control for D13,Long,D13
-N06,control,iac,Code/DevSecOps/infra/security_groups.tf,CKV_AWS_24_ctrl,checkov,INFO,Security group SSH ingress bound to internal CIDR - control for D16,Long,D16
-N07,control,k8s,Code/DevSecOps/deploy/deployment.yaml,CKV_K8S_11_ctrl,checkov,INFO,Deployment manifest specifying CPU/memory limits - control for D22,Long,D22
-N08,control,workflow,.github/workflows/ci.yml,DSEC_GHA_001,conftest,INFO,GitHub Action pinned to full 40-character commit SHA - control for D28,Long,D28
-
+id,type,category,file,rule_or_cve,expected_tool,severity,description,author,control_for,expected_g0,expected_g1,expected_g2
+D01,defect,sast,src/app/main.py,rules.semgrep.python.sqli.concatenation,semgrep,HIGH,SQL injection via string concatenation,Duy,,PASS,BLOCK,BLOCK
+D02,defect,sast,src/app/main.py,rules.semgrep.python.secrets.hardcoded,semgrep,HIGH,Hardcoded password in source code,Duy,,PASS,BLOCK,BLOCK
+D03,defect,sast,src/app/main.py,rules.semgrep.python.exec.command-injection,semgrep,HIGH,Command injection via user input,Duy,,PASS,BLOCK,BLOCK
+D04,defect,sast,src/app/main.py,rules.semgrep.python.file.path-traversal,semgrep,MEDIUM,Path traversal vulnerability,Duy,,PASS,BLOCK,WARN
+D05,defect,sast,src/app/main.py,rules.semgrep.python.pickle.insecure-deserialization,semgrep,HIGH,Insecure deserialization using pickle,Duy,,PASS,BLOCK,BLOCK
+D06,defect,sast,src/app/main.py,rules.semgrep.python.crypto.weak-hash-md5,semgrep,MEDIUM,MD5 used for password hashing,Duy,,PASS,BLOCK,WARN
+D07,defect,secret,.github/workflows/ci.yml,generic-api-key,gitleaks,HIGH,API key hardcoded in workflow file,Duy,,PASS,BLOCK,BLOCK
+D08,defect,secret,src/app/main.py,generic-api-key,gitleaks,HIGH,Secret token hardcoded in application,Duy,,PASS,BLOCK,BLOCK
+D09,defect,sca,src/requirements.txt,CVE-2024-35195,trivy,MEDIUM,Requests Session TLS verification state persists after verify=False,Duy,,PASS,BLOCK,WARN
+D10,defect,sca,src/requirements.txt,CVE-2023-45803,trivy,MEDIUM,urllib3 request body retained across selected redirects,Duy,,PASS,BLOCK,BLOCK
+D11,defect,sca,src/requirements.txt,CVE-2024-24762,trivy,HIGH,python-multipart 0.0.6 used by a Form endpoint; CVE-2024-24762 is fixed in 0.0.7,Duy,,PASS,BLOCK,BLOCK
+D12,defect,image,Code/DevSecOps/Dockerfile,CKV_DOCKER_7,checkov,HIGH,Base image uses mutable latest tag,Tài,,PASS,BLOCK,BLOCK
+D13,defect,image,Code/DevSecOps/Dockerfile,CKV_DOCKER_3,checkov,HIGH,Container runs as root user,Tài,,PASS,BLOCK,BLOCK
+D14,defect,image,Code/DevSecOps/Dockerfile,CKV_DOCKER_4,checkov,HIGH,ADD instruction fetches remote URL,Tài,,PASS,BLOCK,BLOCK
+D15,defect,image,Code/DevSecOps/Dockerfile,CKV_DOCKER_1,checkov,HIGH,SSH server installed and port 22 exposed,Tài,,PASS,BLOCK,BLOCK
+D16,defect,iac,Code/DevSecOps/infra/security_groups.tf,CKV_AWS_24,checkov,HIGH,Security group opens SSH port 22 to 0.0.0.0/0,Tài,,PASS,BLOCK,BLOCK
+D17,defect,iac,Code/DevSecOps/infra/iam.tf,CKV_AWS_1,checkov,CRITICAL,IAM policy uses wildcard actions and resources,Tài,,PASS,BLOCK,BLOCK
+D18,defect,iac,Code/DevSecOps/infra/s3.tf,CKV_AWS_53,checkov,HIGH,S3 bucket public access block disabled,Tài,,PASS,BLOCK,BLOCK
+D19,defect,iac,Code/DevSecOps/infra/rds.tf,CKV_AWS_17,checkov,HIGH,RDS instance is publicly accessible,Tài,,PASS,BLOCK,BLOCK
+D20,defect,iac,Code/DevSecOps/infra/s3.tf,CKV_AWS_21,checkov,HIGH,S3 bucket versioning and logging disabled,Tài,,PASS,BLOCK,WARN
+D21,defect,k8s,Code/DevSecOps/deploy/deployment.yaml,CKV_K8S_16,checkov,HIGH,Container runs in privileged mode,Tài,,PASS,BLOCK,BLOCK
+D22,defect,k8s,Code/DevSecOps/deploy/deployment.yaml,CKV_K8S_11,checkov,HIGH,Container has no resource limits,Tài,,PASS,BLOCK,WARN
+D23,defect,k8s,Code/DevSecOps/deploy/deployment.yaml,CKV_K8S_14,checkov,HIGH,Container image uses latest tag instead of digest,Tài,,PASS,BLOCK,BLOCK
+D24,defect,k8s,Code/DevSecOps/deploy/serviceaccount.yaml,KSV-0111,trivy,HIGH,ServiceAccount bound to cluster-admin ClusterRole,Tài,,PASS,BLOCK,BLOCK
+D25,defect,k8s,Code/DevSecOps/deploy/deployment.yaml,KSV-0109,trivy,HIGH,Password stored in ConfigMap plaintext,Tài,,PASS,BLOCK,BLOCK
+D26,defect,workflow,.github/workflows/ci.yml,DSEC_GHA_002,conftest,HIGH,GitHub Actions workflow token has write-all permissions,Duy,,PASS,BLOCK,BLOCK
+D27,defect,workflow,.github/workflows/ci.yml,DSEC_GHA_003,conftest,HIGH,GitHub Actions run step vulnerable to script injection,Duy,,PASS,BLOCK,BLOCK
+D28,defect,workflow,.github/workflows/ci.yml,DSEC_GHA_001,conftest,HIGH,GitHub Actions workflow uses mutable action reference,Duy,,PASS,BLOCK,BLOCK
+C01,clean,sast,src/app/main.py,,semgrep,,,Long,,PASS,PASS,PASS
+C02,clean,sast,src/app/main.py,,semgrep,,,Long,,PASS,PASS,PASS
+C03,clean,secret,src/app/main.py,,gitleaks,,,Long,,PASS,PASS,PASS
+C04,clean,sca,src/requirements.txt,,trivy,,,Long,,PASS,PASS,PASS
+C05,clean,iac,Code/DevSecOps/infra/security_groups.tf,,checkov,,,Long,,PASS,PASS,PASS
+C06,clean,iac,Code/DevSecOps/infra/iam.tf,,checkov,,,Long,,PASS,PASS,PASS
+C07,clean,iac,Code/DevSecOps/infra/s3.tf,,checkov,,,Long,,PASS,PASS,PASS
+C08,clean,k8s,Code/DevSecOps/deploy/deployment.yaml,,checkov,,,Long,,PASS,PASS,PASS
+C09,clean,image,Code/DevSecOps/Dockerfile,,checkov,,,Long,,PASS,PASS,PASS
+C10,clean,workflow,.github/workflows/ci.yml,,checkov,,,Long,,PASS,PASS,PASS
+N01,control,sast,src/app/main.py,sql-injection-param,semgrep,INFO,Parameterized SQL query - control for D01,Long,D01,PASS,PASS,PASS
+N02,control,sast,src/test/test_main.py,hardcoded-secret-test,semgrep,INFO,Mock token in unit test - control for D02,Long,D02,PASS,PASS,PASS
+N03,control,secret,src/app/main.py,env-var-secret,gitleaks,INFO,Secret loaded via os.environ - control for D08,Long,D08,PASS,PASS,PASS
+N04,control,sca,src/requirements.txt,safe-dependency,trivy,INFO,Pinned secure library version without CVE - control for D09-D11,Long,D09;D10;D11,PASS,PASS,PASS
+N05,control,image,Code/DevSecOps/Dockerfile,CKV_DOCKER_3_ctrl,checkov,INFO,Explicit non-root USER directive - control for D13,Long,D13,PASS,PASS,PASS
+N06,control,iac,Code/DevSecOps/infra/security_groups.tf,CKV_AWS_24_ctrl,checkov,INFO,Security group SSH ingress bound to internal CIDR - control for D16,Long,D16,PASS,PASS,PASS
+N07,control,k8s,Code/DevSecOps/deploy/deployment.yaml,CKV_K8S_11_ctrl,checkov,INFO,Deployment manifest specifying CPU/memory limits - control for D22,Long,D22,PASS,PASS,PASS
+N08,control,workflow,.github/workflows/ci.yml,DSEC_GHA_001,conftest,INFO,GitHub Action pinned to full 40-character commit SHA - control for D28,Long,D28,PASS,PASS,PASS

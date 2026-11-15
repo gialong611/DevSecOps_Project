@@ -46,8 +46,16 @@ permissions:
 
 env:
   TRIVY_VERSION: "0.76.1"
+  # Immutable cache key for one Trivy vulnerability DB snapshot. Bump this ID
+  # only when intentionally refreshing the study's vulnerability database.
+  TRIVY_DB_SNAPSHOT_ID: "20261115-v1"
   SYFT_VERSION: "1.54.1"
   GRYPE_VERSION: "0.120.1"
+  # Grype DB is seeded once and restored by every image-scan job. Bump this ID
+  # only when intentionally refreshing the study's Grype vulnerability DB.
+  GRYPE_DB_SNAPSHOT_ID: "20261115-v1"
+  GRYPE_DB_AUTO_UPDATE: "false"
+  GRYPE_DB_VALIDATE_AGE: "false"
   CHECKOV_VERSION: "3.3.22"
   GITLEAKS_VERSION: "8.30.1"
   SEMGREP_VERSION: "1.183.0"
@@ -96,11 +104,89 @@ jobs:
       - name: Run tests
         run: python -m pytest -v src/test tests
 
+  # Seed immutable Trivy and Grype vulnerability databases before scanner jobs.
+  # Consumers restore these exact caches and never update the DB during a run.
+  trivy-db-snapshot:
+    name: Prepare Trivy and Grype vulnerability DB snapshots
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout pinned source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install pinned Trivy
+        run: |
+          asset="trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
+          base="https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}"
+          cd "$RUNNER_TEMP"
+          curl -fsSL -o "${asset}" "${base}/${asset}"
+          curl -fsSL -o trivy.sums "${base}/trivy_${TRIVY_VERSION}_checksums.txt"
+          grep "  ${asset}$" trivy.sums | sha256sum -c -
+          tar xzf "${asset}" trivy
+          sudo install trivy /usr/local/bin/trivy
+          trivy --version
+
+      - name: Restore or seed immutable Trivy database cache
+        id: trivy-db-cache
+        uses: actions/cache@a7833574556fa59680c1b7cb190c1735db73ebf0 # v6.1.0
+        with:
+          path: ~/.cache/trivy
+          key: trivy-db-${{ runner.os }}-${{ env.TRIVY_VERSION }}-${{ env.TRIVY_DB_SNAPSHOT_ID }}
+
+      - name: Seed pinned vulnerability DB and config checks on cache miss
+        if: steps.trivy-db-cache.outputs.cache-hit != 'true'
+        run: |
+          trivy image --download-db-only
+          trivy config --format json --output "$RUNNER_TEMP/trivy-config-seed.json" \
+            --exit-code 0 --skip-dirs lab .
+
+      - name: Verify snapshot metadata is present
+        run: |
+          trivy --version | tee "$RUNNER_TEMP/trivy-version.txt"
+          grep -q "Vulnerability DB:" "$RUNNER_TEMP/trivy-version.txt"
+
+      - name: Install pinned Grype
+        run: |
+          asset="grype_${GRYPE_VERSION}_linux_amd64.tar.gz"
+          base="https://github.com/anchore/grype/releases/download/v${GRYPE_VERSION}"
+          cd "$RUNNER_TEMP"
+          curl -fsSL -o "${asset}" "${base}/${asset}"
+          test -s "${asset}"
+          curl -fsSL -o grype_checksums.txt "${base}/grype_${GRYPE_VERSION}_checksums.txt"
+          expected="$(awk -v name="${asset}" '($2 == name || $2 == ("*" name)) {print $1; found=1} END {if (!found) exit 1}' grype_checksums.txt)"
+          actual="$(sha256sum "${asset}" | awk '{print $1}')"
+          test "${actual}" = "${expected}"
+          tar xzf "${asset}" grype
+          sudo install grype /usr/local/bin/grype
+          grype version
+
+      - name: Restore or seed immutable Grype database cache
+        id: grype-db-cache
+        uses: actions/cache@a7833574556fa59680c1b7cb190c1735db73ebf0 # v6.1.0
+        with:
+          path: ~/.cache/grype/db
+          key: grype-db-${{ runner.os }}-${{ env.GRYPE_VERSION }}-${{ env.GRYPE_DB_SNAPSHOT_ID }}
+
+      - name: Seed pinned Grype database on cache miss
+        if: steps.grype-db-cache.outputs.cache-hit != 'true'
+        run: |
+          grype db update
+          grype db status -o json > "$RUNNER_TEMP/grype-db-status.json"
+          test -s "$RUNNER_TEMP/grype-db-status.json"
+          test -d "$HOME/.cache/grype/db"
+
+      - name: Verify pinned Grype database snapshot
+        run: |
+          grype db status -o json | tee "$RUNNER_TEMP/grype-db-status.json"
+          test -s "$RUNNER_TEMP/grype-db-status.json"
+
   # ─────────────────────────────────────────────────────────────
   # 2) SAST + Secret + SCA (chế độ thu thập: thoát 0, chỉ báo cáo)
   # ─────────────────────────────────────────────────────────────
   security-scan:
     name: Security scans (collection mode)
+    needs: trivy-db-snapshot
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -117,6 +203,19 @@ jobs:
       - name: Apply selected experiment fixture
         if: github.event_name == 'workflow_dispatch' && inputs.fixture_id != '' && inputs.fixture_id != 'baseline'
         run: python tests/apply_fixture_patch.py --id "$FIXTURE_ID"
+
+      - name: Restore pinned Trivy database snapshot
+        id: trivy-db-cache
+        uses: actions/cache/restore@a7833574556fa59680c1b7cb190c1735db73ebf0 # v6.1.0
+        with:
+          path: ~/.cache/trivy
+          key: trivy-db-${{ runner.os }}-${{ env.TRIVY_VERSION }}-${{ env.TRIVY_DB_SNAPSHOT_ID }}
+
+      - name: Require pinned Trivy database snapshot
+        if: steps.trivy-db-cache.outputs.cache-hit != 'true'
+        run: |
+          echo "Expected pinned Trivy DB cache key trivy-db-${TRIVY_VERSION}-${TRIVY_DB_SNAPSHOT_ID}" >&2
+          exit 1
 
       - name: Create reports directory
         run: mkdir -p reports
@@ -200,6 +299,7 @@ jobs:
             --output reports/trivy.json \
             --exit-code 0 \
             --ignore-unfixed \
+            --skip-db-update \
             .
 
       - name: Record CI timing
@@ -224,6 +324,7 @@ jobs:
   # ─────────────────────────────────────────────────────────────
   iac:
     name: iac
+    needs: trivy-db-snapshot
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -248,6 +349,19 @@ jobs:
         if: github.event_name == 'workflow_dispatch' && inputs.fixture_id != '' && inputs.fixture_id != 'baseline'
         run: python tests/apply_fixture_patch.py --id "$FIXTURE_ID"
 
+      - name: Restore pinned Trivy database snapshot
+        id: trivy-db-cache
+        uses: actions/cache/restore@a7833574556fa59680c1b7cb190c1735db73ebf0 # v6.1.0
+        with:
+          path: ~/.cache/trivy
+          key: trivy-db-${{ runner.os }}-${{ env.TRIVY_VERSION }}-${{ env.TRIVY_DB_SNAPSHOT_ID }}
+
+      - name: Require pinned Trivy database snapshot
+        if: steps.trivy-db-cache.outputs.cache-hit != 'true'
+        run: |
+          echo "Expected pinned Trivy DB cache key trivy-db-${TRIVY_VERSION}-${TRIVY_DB_SNAPSHOT_ID}" >&2
+          exit 1
+
       - name: Cài Trivy (binary ghim, kiểm checksum theo tệp phát hành)
         run: |
           asset="trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
@@ -266,27 +380,23 @@ jobs:
       - name: Checkov Terraform và Kubernetes (soft-fail, chỉ báo cáo)
         run: |
           mkdir -p reports
-          # Checkov không cho dùng --directory cùng --file; tách framework để
-          # bảo đảm Terraform/Kubernetes, Dockerfile và GitHub Actions đều được quét.
+          # Checkov không cho dùng --directory cùng --file; tách Terraform/Kubernetes
+          # và Dockerfile. GitHub Actions được kiểm tra bằng Conftest/Rego bên dưới.
           checkov -d infra -d deploy --framework terraform,kubernetes \
             --skip-path lab \
             --compact --soft-fail -o json > reports/checkov-iac.stream.json || true
           checkov -f Dockerfile --framework dockerfile \
             --compact --soft-fail -o json > reports/checkov-dockerfile.stream.json || true
-          # .github là thư mục ẩn; chỉ rõ file để Checkov không bỏ qua khi duyệt thư mục.
-          checkov -f ../../.github/workflows/ci.yml --framework github_actions \
-            --compact --soft-fail -o json > reports/checkov-github-actions.stream.json || true
-          for report in reports/checkov-iac.stream.json reports/checkov-dockerfile.stream.json reports/checkov-github-actions.stream.json; do
+          for report in reports/checkov-iac.stream.json reports/checkov-dockerfile.stream.json; do
             test -s "$report"
           done
           cat reports/checkov-iac.stream.json reports/checkov-dockerfile.stream.json \
-            reports/checkov-github-actions.stream.json > reports/checkov.stream.json
+            > reports/checkov.stream.json
           jq -s 'map(if type == "array" then .[] else . end)' \
-            reports/checkov-iac.stream.json reports/checkov-dockerfile.stream.json \
-            reports/checkov-github-actions.stream.json > reports/checkov.json
+            reports/checkov-iac.stream.json reports/checkov-dockerfile.stream.json > reports/checkov.json
 
       - name: Trivy config (chỉ báo cáo)
-        run: trivy config --format json --output reports/trivy-config.json --exit-code 0 --skip-dirs lab .
+        run: trivy config --format json --output reports/trivy-config.json --exit-code 0 --skip-check-update --skip-dirs lab .
 
       - name: Record CI timing
         if: always()
@@ -309,6 +419,7 @@ jobs:
   # ─────────────────────────────────────────────────────────────
   image:
     name: image
+    needs: trivy-db-snapshot
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -323,6 +434,19 @@ jobs:
       - name: Apply selected experiment fixture
         if: github.event_name == 'workflow_dispatch' && inputs.fixture_id != '' && inputs.fixture_id != 'baseline'
         run: python tests/apply_fixture_patch.py --id "$FIXTURE_ID"
+
+      - name: Restore pinned Trivy database snapshot
+        id: trivy-db-cache
+        uses: actions/cache/restore@a7833574556fa59680c1b7cb190c1735db73ebf0 # v6.1.0
+        with:
+          path: ~/.cache/trivy
+          key: trivy-db-${{ runner.os }}-${{ env.TRIVY_VERSION }}-${{ env.TRIVY_DB_SNAPSHOT_ID }}
+
+      - name: Require pinned Trivy database snapshot
+        if: steps.trivy-db-cache.outputs.cache-hit != 'true'
+        run: |
+          echo "Expected pinned Trivy DB cache key trivy-db-${TRIVY_VERSION}-${TRIVY_DB_SNAPSHOT_ID}" >&2
+          exit 1
 
       - name: Cài Trivy/Syft/Grype (binary ghim, kiểm checksum theo tệp phát hành)
         run: |
@@ -352,6 +476,22 @@ jobs:
           syft version
           grype version
 
+      - name: Restore pinned Grype database snapshot
+        id: grype-db-cache
+        uses: actions/cache/restore@a7833574556fa59680c1b7cb190c1735db73ebf0 # v6.1.0
+        with:
+          path: ~/.cache/grype/db
+          key: grype-db-${{ runner.os }}-${{ env.GRYPE_VERSION }}-${{ env.GRYPE_DB_SNAPSHOT_ID }}
+
+      - name: Require pinned Grype database snapshot
+        if: steps.grype-db-cache.outputs.cache-hit != 'true'
+        run: |
+          echo "Expected pinned Grype DB cache key grype-db-${GRYPE_VERSION}-${GRYPE_DB_SNAPSHOT_ID}" >&2
+          exit 1
+
+      - name: Verify restored Grype database
+        run: grype db status -o json
+
       - name: Build image (không push)
         if: ${{ !contains(fromJSON('["D12","D13","D14","D15"]'), env.FIXTURE_ID) }}
         run: docker build -f Dockerfile -t devsecops-app:scan .
@@ -360,7 +500,7 @@ jobs:
         if: ${{ !contains(fromJSON('["D12","D13","D14","D15"]'), env.FIXTURE_ID) }}
         run: |
           mkdir -p reports
-          trivy image --format json --output reports/trivy-image.json --exit-code 0 devsecops-app:scan
+          trivy image --format json --output reports/trivy-image.json --exit-code 0 --skip-db-update devsecops-app:scan
 
       - name: Syft SBOM (CycloneDX JSON)
         if: ${{ !contains(fromJSON('["D12","D13","D14","D15"]'), env.FIXTURE_ID) }}

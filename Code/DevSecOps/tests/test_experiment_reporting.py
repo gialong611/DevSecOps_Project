@@ -16,6 +16,21 @@ import run_fixture_matrix as matrix  # noqa: E402
 import summarize_e3_live as e3  # noqa: E402
 
 
+def test_ground_truth_declares_gate_action_for_every_fixture():
+    ground_truth = fixtures.load_ground_truth(
+        Path(__file__).parents[1] / "ground_truth" / "ground_truth.csv"
+    )
+    assert len(ground_truth) == 46
+    assert all(
+        row.get(f"expected_{policy}") in {"PASS", "WARN", "BLOCK"}
+        for row in ground_truth.values()
+        for policy in fixtures.POLICIES
+    )
+    assert ground_truth["D10"]["expected_g2"] == "BLOCK"
+    assert ground_truth["D23"]["expected_g2"] == "BLOCK"
+    assert ground_truth["D20"]["expected_g2"] == "WARN"
+
+
 def test_static_policy_decisions_are_not_labeled_as_live_scanner_metrics():
     metrics = e1.compute_metrics(
         {"D01": {"severity": "CRITICAL"}},
@@ -84,6 +99,18 @@ def test_e3_requires_five_runs_per_cache_with_one_commit_and_db_snapshot(tmp_pat
                 "cache_mode": mode,
                 "benchmark_role": "measurement",
                 "tool_versions_configured": {"trivy": "0.76.1"},
+                "trivy_db_snapshot_id": "20261115-v1",
+                "grype_runtime": {
+                    "grype_version": "0.120.1",
+                    "db_snapshot_id": "20261115-v1",
+                    "image_scan_skipped": False,
+                    "db": {
+                        "schema_version": "6.1.3",
+                        "built": "2026-11-01T00:00:00Z",
+                        "from": "2026-10-30T00:00:00Z",
+                        "valid": True,
+                    },
+                },
                 "trivy_runtime": {
                     "security-scan": {
                         "databases": {"Vulnerability DB": {"updated_at": "2026-11-01T00:00:00Z"}}
@@ -106,15 +133,46 @@ def test_e3_requires_five_runs_per_cache_with_one_commit_and_db_snapshot(tmp_pat
                 "scan_stage_wall_seconds": 60 + number,
                 "scan_stage_runner_minutes": 1.0,
                 "job_durations_seconds": {
+                    "Run Python tests": 18,
+                    "Prepare Trivy and Grype vulnerability DB snapshots": 8,
                     "Security scans (collection mode)": 20,
                     "iac": 25,
                     "image": 60,
+                    "gate (Conftest Rego)": 12,
+                },
+                "job_conclusions": {
+                    "Run Python tests": "success",
+                    "Prepare Trivy and Grype vulnerability DB snapshots": "success",
+                    "Security scans (collection mode)": "success",
+                    "iac": "success",
+                    "image": "success",
+                    "gate (Conftest Rego)": "success",
                 },
             })
     report = e3.build_report({"runs": runs}, tmp_path / "run-index.json")
     assert report["evidence_status"] == "complete"
     assert report["acceptance"]["same_commit"] is True
     assert report["acceptance"]["trivy_database_snapshot_consistent"] is True
+    assert report["acceptance"]["trivy_database_snapshot_id_consistent"] is True
+    assert report["acceptance"]["grype_database_snapshot_consistent"] is True
+    assert report["acceptance"]["grype_database_snapshot_id_consistent"] is True
+
+    for run in runs:
+        run["conclusion"] = "failure"
+        run["job_conclusions"]["gate (Conftest Rego)"] = "failure"
+        observation_path = Path(run["artifact_path"]) / "observation.json"
+        observation = json.loads(observation_path.read_text(encoding="utf-8"))
+        observation["gate"] = {"decision": "BLOCK"}
+        observation_path.write_text(json.dumps(observation), encoding="utf-8")
+    report = e3.build_report({"runs": runs}, tmp_path / "run-index.json")
+    assert report["evidence_status"] == "complete"
+    assert report["profiles"]["cold"]["expected_baseline_gate_block_runs"] == 5
+    assert report["profiles"]["warm"]["expected_baseline_gate_block_runs"] == 5
+
+    runs[0]["job_conclusions"]["image"] = "failure"
+    report = e3.build_report({"runs": runs}, tmp_path / "run-index.json")
+    assert report["evidence_status"] == "partial"
+    assert any("scanner job did not succeed" in item["reason"] for item in report["excluded_runs"])
 
     runs[-1]["head_sha"] = "different-commit"
     observation = json.loads((tmp_path / "warm-4" / "observation.json").read_text(encoding="utf-8"))
@@ -127,6 +185,7 @@ def test_e3_requires_five_runs_per_cache_with_one_commit_and_db_snapshot(tmp_pat
 
 def test_fixture_comparison_requires_target_rule_and_file():
     assert fixtures.path_matches("Code/DevSecOps/src/app/main.py", "src/app/main.py")
+    assert fixtures.path_matches("/security_groups.tf", "infra/security_groups.tf")
     assert fixtures.finding_matches_rule(
         {"rule_id": "semgrep.sql-injection", "resource": ""},
         ["sql-injection"],
@@ -135,6 +194,80 @@ def test_fixture_comparison_requires_target_rule_and_file():
         {"rule_id": "semgrep.other", "resource": ""},
         ["sql-injection"],
     )
+
+
+def test_checkov_identity_ignores_line_fingerprint_but_keeps_rule_resource_and_file():
+    original = {
+        "tool": "checkov",
+        "rule_id": "CKV_AWS_24",
+        "resource": "aws_security_group.app",
+        "file": "/security_groups.tf",
+        "fingerprint": "line-10",
+    }
+    shifted = {**original, "fingerprint": "line-14"}
+    assert fixtures.finding_identity(original) == fixtures.finding_identity(shifted)
+    assert fixtures.finding_identity(original) != fixtures.finding_identity(
+        {**shifted, "resource": "aws_security_group.other"}
+    )
+
+
+def test_sca_match_uses_cve_when_trivy_reports_installed_metadata_path():
+    expected = {
+        "category": "sca",
+        "expected_tool": "trivy",
+        "file": "src/requirements.txt",
+        "rule_or_cve": "CVE-2024-35195",
+    }
+    finding = {
+        "tool": "trivy",
+        "rule_id": "CVE-2024-35195",
+        "file": "/opt/venv/lib/python3.13/site-packages/requests-2.31.0.dist-info/METADATA",
+    }
+    assert fixtures.finding_matches_defect(finding, expected)
+    assert not fixtures.finding_matches_defect(
+        {**finding, "rule_id": "CVE-2025-00001"}, expected
+    )
+
+
+def test_policy_confusion_and_warning_delta_respect_expected_warn_action():
+    assert fixtures.policy_confusion_bucket("WARN", False) == "TN"
+    assert fixtures.policy_confusion_bucket("WARN", True) == "FP"
+    assert fixtures.policy_confusion_bucket("BLOCK", True) == "TP"
+    baseline = {"policy_runs": [{
+        "policy": "g2",
+        "warnings": [{
+            "rule_id": "warn",
+            "message": "WARN IaC controls require review",
+            "control_ids": ["CKV_AWS_21"],
+            "advisory_ids": [],
+            "affected_findings": [{"tool": "checkov", "category": "iac", "title": "CKV_AWS_21", "resource": "aws_s3_bucket.logs"}],
+        }],
+    }]}
+    changed = {"policy_runs": [{
+        "policy": "g2",
+        "warnings": [{
+            "rule_id": "warn",
+            "message": "WARN IaC controls require review",
+            "control_ids": ["CKV_AWS_21", "CKV_K8S_11"],
+            "advisory_ids": [],
+            "affected_findings": [{"tool": "checkov", "category": "iac", "title": "CKV_AWS_21", "resource": "aws_s3_bucket.logs"}],
+        }],
+    }]}
+    assert len(fixtures.new_warnings_for_policy(changed, baseline, "g2")) == 1
+    changed_same_controls = {"policy_runs": [{
+        "policy": "g2",
+        "warnings": [{
+            "rule_id": "warn",
+            "message": "WARN IaC controls require review",
+            "control_ids": ["CKV_AWS_21"],
+            "advisory_ids": [],
+            "affected_findings": [
+                {"tool": "checkov", "category": "iac", "title": "CKV_AWS_21", "resource": "aws_s3_bucket.logs"},
+                {"tool": "checkov", "category": "iac", "title": "CKV_AWS_21", "resource": "aws_s3_bucket.app"},
+            ],
+        }],
+    }]}
+    assert len(fixtures.new_warnings_for_policy(changed_same_controls, baseline, "g2")) == 1
 
 
 def test_run_matrix_timing_counts_wall_and_runner_time_separately():
@@ -236,7 +369,7 @@ def test_e4_artifact_ingestion_checks_raw_totals_and_limits_causal_claim(tmp_pat
 
     for side, image_id, python_version, severity in (
         ("before", "sha256:before", "3.12.15", "HIGH"),
-        ("after", "sha256:after", "3.12.16", "LOW"),
+        ("after", "sha256:after", "3.12.15", "LOW"),
     ):
         write_json(f"raw/e4/trivy-image-{side}.json", {
             "Metadata": {
@@ -257,11 +390,25 @@ def test_e4_artifact_ingestion_checks_raw_totals_and_limits_causal_claim(tmp_pat
             "components": [{"name": "example"}],
         })
 
+    db_snapshot = {
+        "version": "2",
+        "updated_at": "2026-11-01T00:00:00Z",
+        "next_update": "2026-11-02T00:00:00Z",
+    }
     write_json("experiment/trivy-runtime-image.json", {
         "trivy_version": "0.76.1",
-        "databases": {"Vulnerability DB": {"version": "2", "updated_at": "2026-11-01T00:00:00Z"}},
+        "databases": {"Vulnerability DB": db_snapshot},
         "error": None,
     })
+    for name in (
+        "before-before-scan", "before-after-scan",
+        "after-before-scan", "after-after-scan",
+    ):
+        write_json(f"raw/e4/trivy-runtime-{name}.json", {
+            "trivy_version": "0.76.1",
+            "databases": {"Vulnerability DB": db_snapshot},
+            "error": None,
+        })
     write_json("timing/image.json", {
         "run_id": "123",
         "run_attempt": "1",
@@ -279,8 +426,16 @@ def test_e4_artifact_ingestion_checks_raw_totals_and_limits_causal_claim(tmp_pat
         },
         "db_drift": {"description": "simulated", "rows": [], "changed_count": 0, "changed_decisions": []},
         "live": {
-            "before": {"vulnerabilities": {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 0, "LOW": 0, "UNKNOWN": 0}, "sbom_packages": 1},
-            "after": {"vulnerabilities": {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 1, "UNKNOWN": 0}, "sbom_packages": 1},
+            "before": {
+                "vulnerabilities": {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 0, "LOW": 0, "UNKNOWN": 0},
+                "sbom_packages": 1,
+                "image": {"dockerfile_sha256": "before-dockerfile-hash"},
+            },
+            "after": {
+                "vulnerabilities": {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 1, "UNKNOWN": 0},
+                "sbom_packages": 1,
+                "image": {"dockerfile_sha256": "after-dockerfile-hash"},
+            },
             "delta": {"vulnerabilities_total": 0, "sbom_packages": 0},
         },
     })
@@ -288,11 +443,22 @@ def test_e4_artifact_ingestion_checks_raw_totals_and_limits_causal_claim(tmp_pat
     result = e4_artifact.analyze(tmp_path)
     assert result["live"]["before"]["vulnerabilities_total"] == 1
     assert result["live"]["after"]["vulnerabilities_total"] == 1
+    assert result["evidence_status"] == "comparable"
+    assert result["causal_attribution_allowed"] is True
+    assert result["live"]["comparability"]["same_python_version"] is True
+    assert result["live"]["comparability"]["job_level_trivy_snapshot_recorded"] is True
+    assert result["live"]["comparability"]["per_scan_trivy_snapshot_verified"] is True
+    assert result["live"]["raw_artifact_sha256"]["trivy_before"]
+    assert result["live"]["before"]["image"]["dockerfile_sha256"] == "before-dockerfile-hash"
+
+    drift_path = tmp_path / "raw/e4/trivy-runtime-after-after-scan.json"
+    drift = json.loads(drift_path.read_text(encoding="utf-8"))
+    drift["databases"]["Vulnerability DB"]["updated_at"] = "2026-11-02T00:00:00Z"
+    drift_path.write_text(json.dumps(drift), encoding="utf-8")
+    result = e4_artifact.analyze(tmp_path)
     assert result["evidence_status"] == "limited"
     assert result["causal_attribution_allowed"] is False
-    assert result["live"]["comparability"]["same_python_version"] is False
-    assert result["live"]["comparability"]["job_level_trivy_snapshot_recorded"] is True
-    assert result["live"]["raw_artifact_sha256"]["trivy_before"]
+    assert result["live"]["comparability"]["per_scan_trivy_snapshot_verified"] is False
 
 
 def test_e1_e3_observation_does_not_require_optional_e4_artifacts(monkeypatch, tmp_path):
@@ -324,6 +490,28 @@ def test_e1_e3_observation_does_not_require_optional_e4_artifacts(monkeypatch, t
         }),
         encoding="utf-8",
     )
+    for policy in ("g0", "g1", "g2"):
+        (experiment / f"gate-report-{policy}.json").write_text(
+            json.dumps({
+                "decision": "PASS" if policy == "g0" else "WARN",
+                "summary": {"blockers": 0, "warnings": 1},
+                "blockers": [],
+                "warnings": [{
+                    "rule_id": "warn",
+                    "message": "WARN MEDIUM có bản vá: CVE-2024-35195",
+                    "file": "gate_input.json",
+                    "severity": "MEDIUM",
+                    "advisory_ids": ["CVE-2024-35195"],
+                    "control_ids": [],
+                    "affected_findings": [{
+                        "tool": "trivy", "category": "sca", "title": "CVE-2024-35195",
+                        "file": "src/requirements.txt", "resource": "requests",
+                        "package": "requests", "installed_version": "2.31.0",
+                    }],
+                }],
+            }),
+            encoding="utf-8",
+        )
     gate = tmp_path / "gate.json"
     gate.write_text(json.dumps({"decision": "PASS", "policy_profile": "g2", "summary": {}}), encoding="utf-8")
     timing = tmp_path / "timing.json"
@@ -353,6 +541,8 @@ def test_e1_e3_observation_does_not_require_optional_e4_artifacts(monkeypatch, t
     monkeypatch.setenv("BENCHMARK_ROLE", "measurement")
     monkeypatch.setenv("SCAN_EXECUTION_MODE", "parallel")
     monkeypatch.setenv("CONTEST_POLICY", "g2")
+    monkeypatch.setenv("TRIVY_DB_SNAPSHOT_ID", "20261115-v1")
+    monkeypatch.setenv("GRYPE_DB_SNAPSHOT_ID", "20261115-v1")
     monkeypatch.setattr(sys, "argv", [
         "record_scan_observation.py",
         "--reports-dir", str(reports),
@@ -364,10 +554,14 @@ def test_e1_e3_observation_does_not_require_optional_e4_artifacts(monkeypatch, t
     assert observation.main() == 0
     result = json.loads(out.read_text(encoding="utf-8"))
     assert result["evidence_status"] == "complete"
-    assert result["schema_version"] == 4
+    assert result["schema_version"] == 6
+    assert result["trivy_db_snapshot_id"] == "20261115-v1"
+    assert result["policy_runs"][2]["warnings"][0]["advisory_ids"] == ["CVE-2024-35195"]
+    assert result["policy_runs"][2]["warnings"][0]["affected_findings"][0]["resource"] == "requests"
     assert result["e4_evidence_status"] == "not_requested"
     assert result["e4_requested"] is False
     assert all(not value["present"] for value in result["e4_raw_reports"].values())
     assert result["grype_runtime"]["grype_version"] == "0.120.1"
+    assert result["grype_runtime"]["db_snapshot_id"] == "20261115-v1"
     assert result["grype_runtime"]["db"]["built"] == "2026-11-01T00:00:00Z"
     assert result["issues"] == []

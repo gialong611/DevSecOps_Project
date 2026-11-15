@@ -6,19 +6,19 @@ name: vuln-ci-sample
 on:
   workflow_dispatch:
 
-permissions: write-all # D26 / CKV2_GHA_1
+permissions: write-all # D26 / DSEC_GHA_002
 
 jobs:
   build:
     runs-on: ubuntu-24.04
-    permissions: write-all # D26 / CKV2_GHA_1 (mức job)
+    permissions: write-all # D26 / DSEC_GHA_002 (mức job)
     steps:
       - name: Checkout
         uses: actions/checkout@v7 # D28 / CKV_GHA_7: mutable reference
 
       - name: In tiêu đề PR
         run: |
-          echo "PR: ${{ github.event.pull_request.title }}" # D27 / CKV_GHA_2
+          echo "PR: ${{ github.event.pull_request.title }}" # D27 / DSEC_GHA_003
 
       - name: Chào mừng
-        run: echo "Xin chao ${{ github.event.sender.login }}" # D27 / CKV_GHA_2
+        run: echo "Xin chao ${{ github.event.sender.login }}" # D27 / DSEC_GHA_003

@@ -650,7 +650,7 @@ def build_pptx(out_path: Path):
     slide = add_slide("Bằng chứng kiểm nghiệm")
     add_body(slide, [
         f"{CI_RUN_STATUS} {CI_GATE_SUMMARY}",
-        "Workflow quét .github/workflows bằng Checkov; luật Rego workflow có fixture riêng.",
+        "Workflow .github/workflows được quét bằng Conftest/Rego với rule riêng cho D26-D28.",
         "Patch có thể tái lập nhưng apply sạch không đồng nghĩa scanner đã phát hiện.",
         "E1/E2 là kết quả fixture; cần raw scanner reports và URL run cho số đo detection.",
     ])
