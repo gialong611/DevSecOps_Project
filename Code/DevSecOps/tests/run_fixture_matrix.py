@@ -159,7 +159,7 @@ def job_timing(run_details):
     scan_intervals = []
     all_intervals = []
     scan_names = {
-        "Prepare Trivy vulnerability DB snapshot",
+        "Prepare Trivy and Grype vulnerability DB snapshots",
         "Security scans (collection mode)",
         "iac",
         "image",

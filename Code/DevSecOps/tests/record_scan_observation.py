@@ -258,6 +258,7 @@ def main() -> int:
     grype_skipped = "grype-image" in skipped_scans
     grype_runtime = {
         "grype_version": grype_descriptor.get("version") or os.environ.get("GRYPE_VERSION") or None,
+        "db_snapshot_id": os.environ.get("GRYPE_DB_SNAPSHOT_ID", ""),
         "image_scan_skipped": grype_skipped,
         "db": {
             "schema_version": grype_db_status.get("schemaVersion"),
@@ -272,6 +273,8 @@ def main() -> int:
             issues.append(f"invalid Grype image report: {grype_error or 'not an object'}")
         if grype_runtime["grype_version"] != os.environ.get("GRYPE_VERSION"):
             issues.append("Grype runtime version differs from configured version")
+        if not grype_runtime["db_snapshot_id"]:
+            issues.append("Grype database snapshot ID was not configured")
         if not grype_db_status.get("built") or not grype_db_status.get("schemaVersion"):
             issues.append("Grype vulnerability database metadata was not captured")
 
@@ -284,7 +287,7 @@ def main() -> int:
         run_url += f"/attempts/{attempt}"
 
     record = {
-        "schema_version": 5,
+        "schema_version": 6,
         "evidence_status": "complete" if not issues and run_url else "partial",
         "sample_type": "repository-baseline" if fixture_id == "baseline" else "patch-fixture",
         "fixture_id": fixture_id,

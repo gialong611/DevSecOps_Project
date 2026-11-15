@@ -279,6 +279,7 @@ def comparable_grype_runtime(observation, ignore_image=False):
         return None
     return {
         "grype_version": runtime.get("grype_version"),
+        "db_snapshot_id": runtime.get("db_snapshot_id"),
         "schema_version": database.get("schema_version"),
         "built": database.get("built"),
         "from": database.get("from"),
@@ -616,7 +617,7 @@ def main() -> int:
         "limitations": [
             "Scanner detection means a new normalized finding matching expected tool and rule/CVE relative to a baseline observation for the exact same commit; file matching is required except for Trivy SCA, whose paths refer to installed distribution metadata rather than the requirements manifest.",
             "Grype image findings are baseline-matched by CVE and package when available; legacy observations without package identity fall back to CVE because image-layer paths are unstable across rebuilds.",
-            "For schema v5 observations, policy warnings preserve advisory/control IDs and affected source identities; Grype DB schema, build timestamp, source URL, and runtime version are compared with baseline; intentional image-scan skips are excluded.",
+            "Schema v6 observations include a pinned Grype DB snapshot ID; Grype DB schema, build timestamp, source URL, snapshot ID, and runtime version are compared with the same-commit baseline. Intentional image-scan skips are excluded.",
             "Clean-change false-block counts cover Cxx fixtures; Nxx scanner false positives and gate false blocks are reported separately.",
             "Gate outcomes use blocker details added relative to a baseline observation for the exact same commit; pre-existing baseline blockers are not attributed to a fixture.",
             "TP/FN/FP/TN compare expected BLOCK versus whether the fixture introduced a new blocker. Exact action alignment separately compares expected PASS/WARN/BLOCK with new blocker and warning details relative to baseline.",

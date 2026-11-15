@@ -51,6 +51,11 @@ env:
   TRIVY_DB_SNAPSHOT_ID: "20261115-v1"
   SYFT_VERSION: "1.54.1"
   GRYPE_VERSION: "0.120.1"
+  # Grype DB is seeded once and restored by every image-scan job. Bump this ID
+  # only when intentionally refreshing the study's Grype vulnerability DB.
+  GRYPE_DB_SNAPSHOT_ID: "20261115-v1"
+  GRYPE_DB_AUTO_UPDATE: "false"
+  GRYPE_DB_VALIDATE_AGE: "false"
   CHECKOV_VERSION: "3.3.22"
   GITLEAKS_VERSION: "8.30.1"
   SEMGREP_VERSION: "1.183.0"
@@ -99,10 +104,10 @@ jobs:
       - name: Run tests
         run: python -m pytest -v src/test tests
 
-  # Seed one immutable Trivy vulnerability database before parallel scanner jobs.
-  # The dependent jobs restore this exact cache and skip automatic DB updates.
+  # Seed immutable Trivy and Grype vulnerability databases before scanner jobs.
+  # Consumers restore these exact caches and never update the DB during a run.
   trivy-db-snapshot:
-    name: Prepare Trivy vulnerability DB snapshot
+    name: Prepare Trivy and Grype vulnerability DB snapshots
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -140,6 +145,41 @@ jobs:
         run: |
           trivy --version | tee "$RUNNER_TEMP/trivy-version.txt"
           grep -q "Vulnerability DB:" "$RUNNER_TEMP/trivy-version.txt"
+
+      - name: Install pinned Grype
+        run: |
+          asset="grype_${GRYPE_VERSION}_linux_amd64.tar.gz"
+          base="https://github.com/anchore/grype/releases/download/v${GRYPE_VERSION}"
+          cd "$RUNNER_TEMP"
+          curl -fsSL -o "${asset}" "${base}/${asset}"
+          test -s "${asset}"
+          curl -fsSL -o grype_checksums.txt "${base}/grype_${GRYPE_VERSION}_checksums.txt"
+          expected="$(awk -v name="${asset}" '($2 == name || $2 == ("*" name)) {print $1; found=1} END {if (!found) exit 1}' grype_checksums.txt)"
+          actual="$(sha256sum "${asset}" | awk '{print $1}')"
+          test "${actual}" = "${expected}"
+          tar xzf "${asset}" grype
+          sudo install grype /usr/local/bin/grype
+          grype version
+
+      - name: Restore or seed immutable Grype database cache
+        id: grype-db-cache
+        uses: actions/cache@a7833574556fa59680c1b7cb190c1735db73ebf0 # v6.1.0
+        with:
+          path: ~/.cache/grype/db
+          key: grype-db-${{ runner.os }}-${{ env.GRYPE_VERSION }}-${{ env.GRYPE_DB_SNAPSHOT_ID }}
+
+      - name: Seed pinned Grype database on cache miss
+        if: steps.grype-db-cache.outputs.cache-hit != 'true'
+        run: |
+          grype db update
+          grype db status -o json > "$RUNNER_TEMP/grype-db-status.json"
+          test -s "$RUNNER_TEMP/grype-db-status.json"
+          test -d "$HOME/.cache/grype/db"
+
+      - name: Verify pinned Grype database snapshot
+        run: |
+          grype db status -o json | tee "$RUNNER_TEMP/grype-db-status.json"
+          test -s "$RUNNER_TEMP/grype-db-status.json"
 
   # ─────────────────────────────────────────────────────────────
   # 2) SAST + Secret + SCA (chế độ thu thập: thoát 0, chỉ báo cáo)
@@ -435,6 +475,22 @@ jobs:
           trivy --version
           syft version
           grype version
+
+      - name: Restore pinned Grype database snapshot
+        id: grype-db-cache
+        uses: actions/cache/restore@a7833574556fa59680c1b7cb190c1735db73ebf0 # v6.1.0
+        with:
+          path: ~/.cache/grype/db
+          key: grype-db-${{ runner.os }}-${{ env.GRYPE_VERSION }}-${{ env.GRYPE_DB_SNAPSHOT_ID }}
+
+      - name: Require pinned Grype database snapshot
+        if: steps.grype-db-cache.outputs.cache-hit != 'true'
+        run: |
+          echo "Expected pinned Grype DB cache key grype-db-${GRYPE_VERSION}-${GRYPE_DB_SNAPSHOT_ID}" >&2
+          exit 1
+
+      - name: Verify restored Grype database
+        run: grype db status -o json
 
       - name: Build image (không push)
         if: ${{ !contains(fromJSON('["D12","D13","D14","D15"]'), env.FIXTURE_ID) }}

@@ -100,6 +100,17 @@ def test_e3_requires_five_runs_per_cache_with_one_commit_and_db_snapshot(tmp_pat
                 "benchmark_role": "measurement",
                 "tool_versions_configured": {"trivy": "0.76.1"},
                 "trivy_db_snapshot_id": "20261115-v1",
+                "grype_runtime": {
+                    "grype_version": "0.120.1",
+                    "db_snapshot_id": "20261115-v1",
+                    "image_scan_skipped": False,
+                    "db": {
+                        "schema_version": "6.1.3",
+                        "built": "2026-11-01T00:00:00Z",
+                        "from": "2026-10-30T00:00:00Z",
+                        "valid": True,
+                    },
+                },
                 "trivy_runtime": {
                     "security-scan": {
                         "databases": {"Vulnerability DB": {"updated_at": "2026-11-01T00:00:00Z"}}
@@ -122,7 +133,7 @@ def test_e3_requires_five_runs_per_cache_with_one_commit_and_db_snapshot(tmp_pat
                 "scan_stage_wall_seconds": 60 + number,
                 "scan_stage_runner_minutes": 1.0,
                 "job_durations_seconds": {
-                    "Prepare Trivy vulnerability DB snapshot": 8,
+                    "Prepare Trivy and Grype vulnerability DB snapshots": 8,
                     "Security scans (collection mode)": 20,
                     "iac": 25,
                     "image": 60,
@@ -133,6 +144,8 @@ def test_e3_requires_five_runs_per_cache_with_one_commit_and_db_snapshot(tmp_pat
     assert report["acceptance"]["same_commit"] is True
     assert report["acceptance"]["trivy_database_snapshot_consistent"] is True
     assert report["acceptance"]["trivy_database_snapshot_id_consistent"] is True
+    assert report["acceptance"]["grype_database_snapshot_consistent"] is True
+    assert report["acceptance"]["grype_database_snapshot_id_consistent"] is True
 
     runs[-1]["head_sha"] = "different-commit"
     observation = json.loads((tmp_path / "warm-4" / "observation.json").read_text(encoding="utf-8"))
@@ -469,6 +482,7 @@ def test_e1_e3_observation_does_not_require_optional_e4_artifacts(monkeypatch, t
     monkeypatch.setenv("SCAN_EXECUTION_MODE", "parallel")
     monkeypatch.setenv("CONTEST_POLICY", "g2")
     monkeypatch.setenv("TRIVY_DB_SNAPSHOT_ID", "20261115-v1")
+    monkeypatch.setenv("GRYPE_DB_SNAPSHOT_ID", "20261115-v1")
     monkeypatch.setattr(sys, "argv", [
         "record_scan_observation.py",
         "--reports-dir", str(reports),
@@ -480,7 +494,7 @@ def test_e1_e3_observation_does_not_require_optional_e4_artifacts(monkeypatch, t
     assert observation.main() == 0
     result = json.loads(out.read_text(encoding="utf-8"))
     assert result["evidence_status"] == "complete"
-    assert result["schema_version"] == 5
+    assert result["schema_version"] == 6
     assert result["trivy_db_snapshot_id"] == "20261115-v1"
     assert result["policy_runs"][2]["warnings"][0]["advisory_ids"] == ["CVE-2024-35195"]
     assert result["policy_runs"][2]["warnings"][0]["affected_findings"][0]["resource"] == "requests"
@@ -488,5 +502,6 @@ def test_e1_e3_observation_does_not_require_optional_e4_artifacts(monkeypatch, t
     assert result["e4_requested"] is False
     assert all(not value["present"] for value in result["e4_raw_reports"].values())
     assert result["grype_runtime"]["grype_version"] == "0.120.1"
+    assert result["grype_runtime"]["db_snapshot_id"] == "20261115-v1"
     assert result["grype_runtime"]["db"]["built"] == "2026-11-01T00:00:00Z"
     assert result["issues"] == []

@@ -118,7 +118,7 @@ def build_report(index, index_path):
             excluded.append({"run_id": run.get("run_id"), "reason": "missing complete timing metrics"})
             continue
         required_scan_jobs = {
-            "Prepare Trivy vulnerability DB snapshot",
+            "Prepare Trivy and Grype vulnerability DB snapshots",
             "Security scans (collection mode)",
             "iac",
             "image",
@@ -174,6 +174,31 @@ def build_report(index, index_path):
             str(r["observation"].get("trivy_db_snapshot_id"))
             for r in records if r["observation"].get("trivy_db_snapshot_id")
         })
+        grype_db_snapshots = set()
+        grype_snapshot_ids = set()
+        grype_db_observation_count = 0
+        for run in records:
+            runtime = run["observation"].get("grype_runtime", {})
+            if not isinstance(runtime, dict):
+                continue
+            snapshot_id = runtime.get("db_snapshot_id")
+            if snapshot_id:
+                grype_snapshot_ids.add(str(snapshot_id))
+            database = runtime.get("db")
+            if runtime.get("image_scan_skipped") or not isinstance(database, dict):
+                continue
+            grype_db_observation_count += 1
+            fingerprint = {
+                "grype_version": runtime.get("grype_version"),
+                "db_snapshot_id": snapshot_id,
+                **{
+                    key: database.get(key)
+                    for key in ("schema_version", "built", "from", "valid")
+                },
+            }
+            grype_db_snapshots.add(json.dumps(fingerprint, sort_keys=True))
+        grype_db_snapshots = sorted(grype_db_snapshots)
+        grype_snapshot_ids = sorted(grype_snapshot_ids)
         profiles[mode] = {
             "N": len(records),
             "run_ids": [r.get("run_id") for r in records],
@@ -182,6 +207,9 @@ def build_report(index, index_path):
             "tool_version_fingerprints": sorted(version_sets),
             "trivy_db_snapshots": db_snapshots,
             "trivy_db_snapshot_ids": snapshot_ids,
+            "grype_db_snapshots": grype_db_snapshots,
+            "grype_db_snapshot_ids": grype_snapshot_ids,
+            "grype_db_observation_count": grype_db_observation_count,
             "workflow_wall_seconds": stats(workflow_wall),
             "workflow_runner_minutes": stats(workflow_runner),
             "scan_stage_wall_seconds": stats(scan_wall),
@@ -210,7 +238,23 @@ def build_report(index, index_path):
         and cold_snapshot_ids == warm_snapshot_ids
         and len(warm_snapshot_ids) == 1
     )
-    database_snapshots_match = bool(cold_db) and cold_db == warm_db and len(cold_db) == 1 and snapshot_ids_match
+    cold_grype_db = set(profiles["cold"]["grype_db_snapshots"])
+    warm_grype_db = set(profiles["warm"]["grype_db_snapshots"])
+    cold_grype_ids = set(profiles["cold"]["grype_db_snapshot_ids"])
+    warm_grype_ids = set(profiles["warm"]["grype_db_snapshot_ids"])
+    grype_snapshot_ids_match = (
+        len(cold_grype_ids) == 1
+        and cold_grype_ids == warm_grype_ids
+        and len(warm_grype_ids) == 1
+    )
+    grype_database_snapshots_match = (
+        bool(cold_grype_db) and cold_grype_db == warm_grype_db and len(cold_grype_db) == 1
+        and grype_snapshot_ids_match
+        and profiles["cold"]["grype_db_observation_count"] == profiles["cold"]["N"]
+        and profiles["warm"]["grype_db_observation_count"] == profiles["warm"]["N"]
+    )
+    trivy_database_snapshots_match = bool(cold_db) and cold_db == warm_db and len(cold_db) == 1
+    database_snapshots_match = trivy_database_snapshots_match and snapshot_ids_match and grype_database_snapshots_match
     complete = same_commit and versions_match and enough_repeats and database_snapshots_match
     cold_median = profiles["cold"]["workflow_wall_seconds"]["median"]
     warm_median = profiles["warm"]["workflow_wall_seconds"]["median"]
@@ -228,8 +272,8 @@ def build_report(index, index_path):
         "measurement_definition": {
             "workflow_wall_seconds": "min(job.started_at) to max(job.completed_at) for one workflow_dispatch run",
             "workflow_runner_minutes": "sum of measured durations for all completed jobs divided by 60",
-            "scan_stage_wall_seconds": "Trivy DB preparation start to last completion among DB preparation and the parallel security-scan, iac, and image jobs",
-            "scan_stage_runner_minutes": "sum of Trivy DB preparation and the three scanner job durations divided by 60",
+            "scan_stage_wall_seconds": "vulnerability DB preparation start to last completion among DB preparation and the parallel security-scan, iac, and image jobs",
+            "scan_stage_runner_minutes": "sum of vulnerability DB preparation and the three scanner job durations divided by 60",
             "cache_variable": "actions/setup-python pip cache for pytest/runtime dependencies, Semgrep, and Checkov installations",
             "execution_mode": "parallel scanner jobs; this experiment does not claim a serial-mode comparison",
             "warmup": "runs marked benchmark_role=warmup are excluded from all statistics",
@@ -239,20 +283,23 @@ def build_report(index, index_path):
             "same_commit_required": True,
             "pinned_tool_versions_required": True,
             "same_trivy_database_snapshot_required": True,
+            "same_grype_database_snapshot_required": True,
             "same_commit": same_commit,
             "tool_versions_consistent": versions_match,
             "enough_repeats": enough_repeats,
-            "trivy_database_snapshot_consistent": database_snapshots_match,
+            "trivy_database_snapshot_consistent": trivy_database_snapshots_match,
             "trivy_database_snapshot_id_consistent": snapshot_ids_match,
+            "grype_database_snapshot_consistent": grype_database_snapshots_match,
+            "grype_database_snapshot_id_consistent": grype_snapshot_ids_match,
         },
         "profiles": profiles,
         "cache_comparison": delta,
         "excluded_runs": excluded,
         "limitations": [
-            "Cache comparison covers pip package downloads for the test job, Semgrep, and Checkov. A separate versioned immutable Trivy vulnerability DB cache is shared by both profiles and excluded from the pip-cache variable.",
+            "Cache comparison covers pip package downloads for the test job, Semgrep, and Checkov. Separate versioned immutable Trivy and Grype vulnerability DB caches are shared by both profiles and excluded from the pip-cache variable.",
             "GitHub-hosted runner hardware and external network conditions can vary between runs; report the observed spread.",
             "Wall time is the measured workflow job interval for the dispatch run; release and kind deploy-smoke are skipped on workflow_dispatch.",
-            "A complete cache comparison requires one shared Trivy vulnerability DB snapshot across both profiles; the workflow records its snapshot key and runtime DB metadata.",
+            "A complete cache comparison requires one shared Trivy and Grype vulnerability DB snapshot across both profiles; the workflow records both snapshot keys and runtime DB metadata.",
         ],
     }
 

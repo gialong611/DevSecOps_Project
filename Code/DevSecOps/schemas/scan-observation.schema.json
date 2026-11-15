@@ -11,7 +11,7 @@
     "normalized_findings", "gate", "policy_runs", "skipped_scans", "timing", "issues", "interpretation"
   ],
   "properties": {
-    "schema_version": {"const": 5},
+    "schema_version": {"const": 6},
     "evidence_status": {"enum": ["complete", "partial"]},
     "sample_type": {"enum": ["repository-baseline", "patch-fixture"]},
     "fixture_id": {"type": "string", "pattern": "^(baseline|[DCN][0-9]{2})$"},
@@ -75,9 +75,10 @@
     },
     "grype_runtime": {
       "type": "object",
-      "required": ["grype_version", "image_scan_skipped", "db", "error"],
+      "required": ["grype_version", "db_snapshot_id", "image_scan_skipped", "db", "error"],
       "properties": {
         "grype_version": {"type": ["string", "null"]},
+        "db_snapshot_id": {"type": "string", "minLength": 1},
         "image_scan_skipped": {"type": "boolean"},
         "db": {
           "type": ["object", "null"],
