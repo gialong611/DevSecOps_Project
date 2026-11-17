@@ -66,3 +66,26 @@ Ngày 2026-11-17, GitHub API trả ruleset `Protect main` ở trạng thái
 nguồn, nhưng GitHub không bắt buộc các check đó trước khi merge tại thời điểm
 này. PR vẫn là draft và chưa merge; lượt này không được tính là bằng chứng
 branch protection chặn merge.
+
+## Bốn PR demo riêng biệt: xác minh scanner và policy (2026-11-17)
+
+Bốn PR nháp được tách riêng từ `main`, mỗi PR chứa một lỗi có chủ đích. Đây là
+bằng chứng chạy demo và hành vi policy; không tính thành PR block/pass được GitHub
+enforce vì ruleset đang tắt.
+
+| Fixture / PR | Run | Finding quan sát được | Kết quả |
+|---|---|---|---|
+| D08 secret, [PR #4](https://github.com/gialong611/DevSecOps_Project/pull/4) | [44048101443](https://github.com/gialong611/DevSecOps_Project/actions/runs/44048101443) | Gitleaks `generic-api-key` | Gate G2 BLOCK; scanner và các job kiểm tra còn lại hoàn tất. |
+| D09 dependency, [PR #5](https://github.com/gialong611/DevSecOps_Project/pull/5) | [44048111994](https://github.com/gialong611/DevSecOps_Project/actions/runs/44048111994) | Trivy `CVE-2024-35195` | Gate G2 WARN; các required workflow checks đều pass. |
+| D13 container root, [PR #6](https://github.com/gialong611/DevSecOps_Project/pull/6) | [44048122714](https://github.com/gialong611/DevSecOps_Project/actions/runs/44048122714) | Checkov `CKV_DOCKER_3` | Gate G2 BLOCK. Test `test_e4_dockerfile_checks_real_files` cũng fail do xác nhận thuộc tính non-root bị vi phạm. |
+| D16 SSH công khai, [PR #7](https://github.com/gialong611/DevSecOps_Project/pull/7) | [44048132559](https://github.com/gialong611/DevSecOps_Project/actions/runs/44048132559) | Checkov `CKV_AWS_24` | Gate G2 BLOCK; các job kiểm tra còn lại pass. |
+
+Sau khi D08 được thêm, Gitleaks mặc định quét tất cả Git refs cục bộ và khiến
+secret giả xuất hiện ngoài PR D08. Workflow được sửa ở commit main `3a96932`
+để giới hạn lịch sử quét bằng `--log-opts="HEAD"`; run [44047990981](https://github.com/gialong611/DevSecOps_Project/actions/runs/44047990981)
+trên `main` thành công. Bốn run trên xác nhận lỗi cross-branch không còn làm
+nhiễu kết quả D09, D13 và D16.
+
+Các PR #4–#7 vẫn là draft, chưa merge. `release` và `deploy-smoke` bị skip ở
+các lượt PR; kết quả này chỉ chứng minh lớp kiểm tra CI/gate liên quan, không
+phải bằng chứng deploy thành công hoặc ruleset chặn thao tác merge.

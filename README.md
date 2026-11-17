@@ -76,11 +76,10 @@ luận rằng ruleset đang chặn merge. Lịch sử ruleset và run block/pass
 
 ### Demo trực tiếp
 
-Bốn fixture trình diễn secret hardcode, dependency có CVE, container chạy root
-và security group mở SSH công khai. Chạy lần lượt D08, D09, D13, D16 bằng
-`workflow_dispatch`; xem hướng dẫn, finding dự kiến và lời dẫn tại
-[`DEMO_THUYET_TRINH_4_LOI.md`](DEMO_THUYET_TRINH_4_LOI.md). Fixture chỉ được áp
-trong runner; không cần commit lỗi vào `main`.
+Bốn demo có branch và PR nháp riêng: D08 secret, D09 dependency CVE, D13 container
+root và D16 SSH công khai. Mở từng PR để xem diff và check gate; xem branch, vị trí
+lỗi và lời dẫn tại [`DEMO_THUYET_TRINH_4_LOI.md`](DEMO_THUYET_TRINH_4_LOI.md).
+Không merge các branch demo vào `main`.
 
 Quy trình thu thập/tổng hợp xem tại `Code/DevSecOps/tests/README.md`; tự đánh giá
 mức hoàn thiện xem tại `PROJECT_COMPLETION.md`.
