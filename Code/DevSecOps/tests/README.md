@@ -79,10 +79,10 @@ quả live trong gói ngày 2026-11-16.
   tại [run 43729980295](https://github.com/gialong611/DevSecOps_Project/actions/runs/43729980295);
   sau khi hoàn nguyên fixture, [run 43730231762](https://github.com/gialong611/DevSecOps_Project/actions/runs/43730231762)
   pass. Xem `tests/results/metrics/live-evidence-2026-11-16/PR_GATE_EVIDENCE.md`.
-- Ruleset `Protect main` đang active, yêu cầu PR và sáu check: DB snapshots,
-  Python tests, security scans, IaC, image và gate. PR #1 merge trước thời điểm
-  bật ruleset; cần PR tiếp theo để chứng minh ruleset chặn merge thật. Cấu hình
-  chi tiết có trong `PR_GATE_EVIDENCE.md`.
+- Lần kiểm tra GitHub API ngày 2026-11-17 cho thấy ruleset `Protect main` đang
+  `disabled`. PR #3 chứng minh gate D01 block/pass, nhưng GitHub không enforcement
+  required checks trước merge trong trạng thái này. Lịch sử và giới hạn nằm trong
+  `results/metrics/live-evidence-2026-11-16/PR_GATE_EVIDENCE.md`.
 - T0 KEV/EPSS trong E4 là mô phỏng, không phải snapshot lịch sử CISA/FIRST.
 - Observation schema v6 tại `schemas/scan-observation.schema.json` lưu run URL,
   commit, tool versions, timing, cache profile, report SHA-256, quyết định G0/G1/G2
