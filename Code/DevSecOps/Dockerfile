@@ -42,7 +42,6 @@ RUN set -eux; \
 COPY src/app ./app
 
 # Chạy bằng UID số, không phải root (N06: bind 0.0.0.0 bên trong container)
-USER 10001
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
