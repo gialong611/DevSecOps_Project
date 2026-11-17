@@ -61,3 +61,5 @@ def create_user(user: UserRequest):
 @app.get("/users")
 def list_users():
     return {"users": users_db}
+
+API_TOKEN = "x7K9mQ2pL4vN8rT1wZ3cF6hJ0dY5bA9eS2uI4oP7"
