@@ -65,17 +65,22 @@ gieo cài, E3 chỉ thay đổi pip cache; không suy rộng các kết quả n�
 production hoặc kết luận cache luôn làm chậm pipeline. Xem các giới hạn và
 đường dẫn run trong `PROJECT_COMPLETION.md` và thư mục evidence.
 
-### Gate trên PR và bảo vệ nhánh
+### Gate trên PR và trạng thái ruleset
 
 Các lượt CI trên nhánh PR chứng minh gate G2 chặn lỗi D01 và pass sau khi hoàn
-nguyên lỗi. Ruleset **Protect main** hiện active trên `main`, yêu cầu PR và sáu
-required checks:
-`Prepare Trivy and Grype vulnerability DB snapshots`, `Run Python tests`,
-`Security scans (collection mode)`, `iac`, `image`, `gate (Conftest Rego)`.
-Lượt CI cuối có sáu check pass, nhưng PR #1 merge trước thời điểm ruleset được
-tạo; cần một PR mới sau khi bật ruleset để chứng minh chặn merge thực tế. Cấu
-hình yêu cầu 0 review và không bắt buộc nhánh cập nhật trước khi merge; chi tiết ở
+nguyên lỗi. Tại lần kiểm tra GitHub API ngày 2026-11-17, ruleset **Protect main**
+đang `disabled`; workflow vẫn chạy các check nhưng GitHub chưa bắt buộc chúng
+trước khi merge. PR #3 là draft, ghi bằng chứng mới; chưa merge. Vì vậy chưa kết
+luận rằng ruleset đang chặn merge. Lịch sử ruleset và run block/pass xem tại
 [`PR_GATE_EVIDENCE.md`](Code/DevSecOps/tests/results/metrics/live-evidence-2026-11-16/PR_GATE_EVIDENCE.md).
+
+### Demo trực tiếp
+
+Bốn fixture trình diễn secret hardcode, dependency có CVE, container chạy root
+và security group mở SSH công khai. Chạy lần lượt D08, D09, D13, D16 bằng
+`workflow_dispatch`; xem hướng dẫn, finding dự kiến và lời dẫn tại
+[`DEMO_THUYET_TRINH_4_LOI.md`](DEMO_THUYET_TRINH_4_LOI.md). Fixture chỉ được áp
+trong runner; không cần commit lỗi vào `main`.
 
 Quy trình thu thập/tổng hợp xem tại `Code/DevSecOps/tests/README.md`; tự đánh giá
 mức hoàn thiện xem tại `PROJECT_COMPLETION.md`.

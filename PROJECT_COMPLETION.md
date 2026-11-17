@@ -39,17 +39,17 @@ Cập nhật ngày 2026-11-16. Bộ bằng chứng E1–E4 mới nhất được
   [run 43729980295](https://github.com/gialong611/DevSecOps_Project/actions/runs/43729980295).
   Sau khi hoàn nguyên fixture, gate pass ở
   [run 43730231762](https://github.com/gialong611/DevSecOps_Project/actions/runs/43730231762).
-- Ruleset **Protect main** đã được xác minh active trên `refs/heads/main`. Ruleset
-  yêu cầu pull request và sáu status checks: DB snapshots, Python tests, security
-  scans, IaC, image và gate. Lượt CI
+- Khi kiểm tra ngày 2026-11-16, ruleset **Protect main** từng active trên
+  `refs/heads/main` và yêu cầu pull request cùng sáu status checks: DB snapshots,
+  Python tests, security scans, IaC, image và gate. Lượt CI
   [43730524460](https://github.com/gialong611/DevSecOps_Project/actions/runs/43730524460)
   cho thấy cả sáu check pass, nhưng PR #1 được merge lúc 15:35:38Z trước khi
   ruleset được tạo lúc 16:08:08Z. Vì thế chưa dùng PR #1 làm bằng chứng ruleset
   đã chặn merge.
-- Ruleset yêu cầu 0 review, không yêu cầu nhánh cập nhật trước khi merge, chặn
-  xóa nhánh và force push, và không cho bypass. Cấu hình được xác minh qua API;
-  cần một PR mới sau thời điểm bật ruleset để chứng minh GitHub thực thi chặn
-  merge khi required check pending/fail và cho merge khi tất cả pass.
+- Lần kiểm tra GitHub API ngày 2026-11-17 cho thấy ruleset hiện là `disabled`.
+  PR #3 có lượt D01 bị gate chặn và lượt sửa được gate cho qua, nhưng GitHub
+  không bắt buộc check trước merge khi ruleset đang tắt. Cần bật lại ruleset và
+  tạo PR mới nếu muốn chứng minh enforcement ở tầng GitHub.
 
 ## Mức hoàn thiện và phần còn lại
 
@@ -68,9 +68,9 @@ Các cải thiện có giá trị tiếp theo:
    phân tích dài hạn.
 
 Không nên ghi đề tài “100/100” chỉ từ các số liệu này. Kết luận phù hợp là
-pipeline đã chạy được, policy được thử bằng fixture live và required checks đã
-được bật; giới hạn về production generalization, registry digest và mô phỏng
-KEV/EPSS vẫn cần nêu trong báo cáo.
+pipeline đã chạy được, policy được thử bằng fixture live; ruleset hiện tắt nên
+GitHub chưa enforcement required checks. Giới hạn về production generalization,
+registry digest và mô phỏng KEV/EPSS vẫn cần nêu trong báo cáo.
 
 ## Chạy lại thí nghiệm
 
@@ -78,3 +78,7 @@ Hướng dẫn dispatch, resume và phân tích artifact nằm trong
 [`Code/DevSecOps/tests/README.md`](Code/DevSecOps/tests/README.md). Khi chạy lại,
 ghim một commit cho toàn study và không gộp kết quả có khác tool version hoặc
 snapshot DB.
+
+Runbook trình diễn trực tiếp bốn lỗi D08/D09/D13/D16, gồm fixture ID, vị trí
+thay đổi, finding dự kiến và lời dẫn, nằm tại
+[`DEMO_THUYET_TRINH_4_LOI.md`](DEMO_THUYET_TRINH_4_LOI.md).
