@@ -262,7 +262,11 @@ jobs:
         continue-on-error: true
         run: |
           if [ "$FIXTURE_ID" = "baseline" ]; then
+            # Gitleaks defaults to scanning every local ref. Scope history to
+            # the checked-out branch so another demo/PR branch cannot leak
+            # findings into this run.
             gitleaks git \
+              --log-opts="HEAD" \
               --config "${GITHUB_WORKSPACE}/.gitleaks.toml" \
               --report-format json \
               --report-path reports/gitleaks.json \
