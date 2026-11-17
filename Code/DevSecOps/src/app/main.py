@@ -61,3 +61,10 @@ def create_user(user: UserRequest):
 @app.get("/users")
 def list_users():
     return {"users": users_db}
+
+@app.get("/search")
+def search_users(q: str):
+    conn = sqlite3.connect(":memory:")
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM users WHERE name = '" + q + "'")
+    return {"rows": cursor.fetchall()}
