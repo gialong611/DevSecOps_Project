@@ -76,10 +76,11 @@ luận rằng ruleset đang chặn merge. Lịch sử ruleset và run block/pass
 
 ### Demo trực tiếp
 
-Bốn demo có branch và PR nháp riêng: D08 secret, D09 dependency CVE, D13 container
-root và D16 SSH công khai. Mở từng PR để xem diff và check gate; xem branch, vị trí
-lỗi và lời dẫn tại [`DEMO_THUYET_TRINH_4_LOI.md`](DEMO_THUYET_TRINH_4_LOI.md).
-Không merge các branch demo vào `main`.
+Bốn demo bổ sung có branch và PR nháp riêng: D08 secret, D09 dependency CVE,
+D13 container root và D16 SSH công khai. PR #3 cũng đang gieo lỗi D01 SQL injection
+để minh họa G2 BLOCK. D09 vẫn xanh có chủ đích: finding Medium được G2 WARN chứ
+không bị chặn. Xem runbook để mở diff, check gate và lời dẫn; không merge các PR
+có lỗi vào `main`.
 
 Quy trình thu thập/tổng hợp xem tại `Code/DevSecOps/tests/README.md`; tự đánh giá
 mức hoàn thiện xem tại `PROJECT_COMPLETION.md`.

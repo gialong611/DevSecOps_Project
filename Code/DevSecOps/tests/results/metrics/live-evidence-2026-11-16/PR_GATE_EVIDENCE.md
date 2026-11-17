@@ -89,3 +89,23 @@ nhiễu kết quả D09, D13 và D16.
 Các PR #4–#7 vẫn là draft, chưa merge. `release` và `deploy-smoke` bị skip ở
 các lượt PR; kết quả này chỉ chứng minh lớp kiểm tra CI/gate liên quan, không
 phải bằng chứng deploy thành công hoặc ruleset chặn thao tác merge.
+
+## D01 được gieo lại để demo gate BLOCK (2026-11-17)
+
+Sau khi PR #3 được dùng để kiểm tra lượt sửa/pass, fixture D01 được khôi phục
+trên branch `codex/demo-d01-gate`, commit `ed081521173b1ec1c659201ef49677176b7c2cfb`.
+Run [44052476001](https://github.com/gialong611/DevSecOps_Project/actions/runs/44052476001)
+đã hoàn tất với Python tests, security scan, IaC và image pass; riêng gate G2
+BLOCK đúng hai finding SAST HIGH:
+
+- `python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query`
+- `rules.semgrep.python.sqli.concatenation`
+
+Gate ghi `22 tests, 0 passed, 20 warnings, 2 failures`; hai failure là hai
+blocker SQL injection, còn 20 warning baseline không phải nguyên nhân làm run
+đỏ. `release` và `deploy-smoke` được skip. Đây là lượt demo lỗi được gieo; run
+block/pass trước đó vẫn là bằng chứng lịch sử riêng.
+
+PR #5 / D09 vẫn chứa `requests==2.31.0`; run `44048111994` quan sát
+`CVE-2024-35195` và G2 WARN. Các check xanh ở D09 là hành vi đúng theo policy:
+finding Medium được báo để khắc phục nhưng không chặn release.
