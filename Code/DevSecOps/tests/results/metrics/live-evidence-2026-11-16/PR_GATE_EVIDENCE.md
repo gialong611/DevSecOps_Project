@@ -44,3 +44,25 @@ mới được tạo sau thời điểm bật ruleset để chứng minh trực 
 merge khi check pending/fail rồi cho merge khi cả sáu check pass. Quy tắc hiện
 không bắt buộc review hoặc cập nhật nhánh trước khi merge; cần trình bày đúng
 các giới hạn này.
+
+## Lượt xác minh bổ sung: PR #3 (2026-11-17)
+
+PR nháp [#3](https://github.com/gialong611/DevSecOps_Project/pull/3) trên
+nhánh `codex/demo-d01-gate` dùng fixture D01 để kiểm tra lại đường đi block/pass:
+
+| Bước | Commit/run | Kết quả |
+|---|---|---|
+| Gieo D01 SQL injection | [run 44036479351](https://github.com/gialong611/DevSecOps_Project/actions/runs/44036479351), commit `42aad675a70a3736b0412c3a57830c0ad30cddcb` | Scanner phát hiện hai rule SQL injection HIGH; gate G2 fail đúng dự kiến. Python, scanner, IaC và image jobs hoàn tất thành công. |
+| Gỡ D01 sau khi xác nhận block | [run 44036927972](https://github.com/gialong611/DevSecOps_Project/actions/runs/44036927972), commit `3dbfe99d5da19a74be0cbb815f801f310379f29a` | Gate pass; DB, Python, security scans, IaC và image đều pass. `release` và `deploy-smoke` được workflow bỏ qua. |
+
+Run đầu ghi nhận `python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query`
+và `rules.semgrep.python.sqli.concatenation`, cả hai mức HIGH. Run sửa dùng
+baseline sạch sau khi hoàn nguyên file ứng dụng về nội dung của `main`.
+
+### Trạng thái enforcement trong lượt PR #3
+
+Ngày 2026-11-17, GitHub API trả ruleset `Protect main` ở trạng thái
+`disabled`. Vì vậy PR #3 chứng minh workflow chạy và gate block/pass theo mã
+nguồn, nhưng GitHub không bắt buộc các check đó trước khi merge tại thời điểm
+này. PR vẫn là draft và chưa merge; lượt này không được tính là bằng chứng
+branch protection chặn merge.
